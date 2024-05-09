@@ -16,7 +16,7 @@ COPY ./packages ./packages
 COPY ./projects/$name/package.json ./projects/$name/package.json
 
 RUN [ -f pnpm-lock.yaml ] || (echo "Lockfile not found." && exit 1)
-
+#RUN apk add --update python3 make g++ && rm -rf /var/cache/apk/*
 RUN pnpm i
 
 # --------- builder -----------
@@ -63,7 +63,7 @@ COPY --from=builder --chown=nextjs:nodejs /app/projects/$name/.next/server/chunk
 # copy worker
 COPY --from=builder --chown=nextjs:nodejs /app/projects/$name/.next/server/worker /app/projects/$name/.next/server/worker
 # copy package.json to version file
-COPY --from=builder /app/projects/$name/package.json ./package.json 
+COPY --from=builder /app/projects/$name/package.json ./package.json
 # copy config
 COPY ./projects/$name/data /app/data
 
