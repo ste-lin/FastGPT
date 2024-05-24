@@ -2,10 +2,10 @@ import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useToast } from '@fastgpt/web/hooks/useToast';
 import { getErrText } from '@fastgpt/global/common/error/utils';
 import type { AppTTSConfigType } from '@fastgpt/global/core/app/type.d';
-import { TTSTypeEnum } from '@/constants/app';
+import { TTSTypeEnum } from '@/web/core/app/constants';
 import { useTranslation } from 'next-i18next';
 import type { OutLinkChatAuthProps } from '@fastgpt/global/support/permission/chat.d';
-import { getToken } from '@/web/support/user/auth';
+import { useMount } from 'ahooks';
 
 const contentType = 'audio/mpeg';
 const splitMarker = 'SPLIT_MARKER';
@@ -40,8 +40,7 @@ export const useAudioPlay = (props?: OutLinkChatAuthProps & { ttsConfig?: AppTTS
       const response = await fetch('/api/core/chat/item/getSpeech', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          token: getToken()
+          'Content-Type': 'application/json'
         },
         signal: audioController.current.signal,
         body: JSON.stringify({
@@ -329,7 +328,7 @@ export const useAudioPlay = (props?: OutLinkChatAuthProps & { ttsConfig?: AppTTS
   );
 
   // listen audio status
-  useEffect(() => {
+  useMount(() => {
     const audio = new Audio();
     audioRef.current = audio;
 
@@ -357,7 +356,7 @@ export const useAudioPlay = (props?: OutLinkChatAuthProps & { ttsConfig?: AppTTS
       audio.remove();
       window.removeEventListener('beforeunload', listen);
     };
-  }, []);
+  });
 
   return {
     audio: audioRef.current,

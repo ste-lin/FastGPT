@@ -7,7 +7,7 @@ import MyIcon from '@fastgpt/web/components/common/Icon';
 import { useTranslation } from 'next-i18next';
 import MyTooltip from '@/components/MyTooltip';
 import dynamic from 'next/dynamic';
-import MyBox from '@/components/common/MyBox';
+import MyBox from '@fastgpt/web/components/common/MyBox';
 import { SearchScoreTypeEnum, SearchScoreTypeMap } from '@fastgpt/global/core/dataset/constants';
 
 const InputDataModal = dynamic(() => import('@/pages/dataset/detail/components/InputDataModal'));
@@ -19,26 +19,26 @@ const scoreTheme: Record<
     color: string;
     bg: string;
     borderColor: string;
-    colorSchema: string;
+    colorScheme: string;
   }
 > = {
   '0': {
     color: '#6F5DD7',
     bg: '#F0EEFF',
     borderColor: '#D3CAFF',
-    colorSchema: 'purple'
+    colorScheme: 'purple'
   },
   '1': {
     color: '#9E53C1',
     bg: '#FAF1FF',
     borderColor: '#ECF',
-    colorSchema: 'pink'
+    colorScheme: 'pink'
   },
   '2': {
     color: '#0884DD',
     bg: '#F0FBFF',
     borderColor: '#BCE7FF',
-    colorSchema: 'blue'
+    colorScheme: 'blue'
   }
 };
 
@@ -184,7 +184,7 @@ const QuoteItem = ({
                         size="sm"
                         borderRadius={'20px'}
                         {...(scoreTheme[i] && {
-                          colorScheme: scoreTheme[i].colorSchema
+                          colorScheme: scoreTheme[i].colorScheme
                         })}
                         bg="#E8EBF0"
                       />
@@ -218,6 +218,7 @@ const QuoteItem = ({
             <RawSourceBox
               fontWeight={'bold'}
               color={'black'}
+              collectionId={quoteItem.collectionId}
               sourceName={quoteItem.sourceName}
               sourceId={quoteItem.sourceId}
               canView={canViewSource}

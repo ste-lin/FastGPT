@@ -1,8 +1,4 @@
-import type {
-  AIChatItemType,
-  ChatItemType,
-  UserChatItemType
-} from '@fastgpt/global/core/chat/type.d';
+import type { AIChatItemType, UserChatItemType } from '@fastgpt/global/core/chat/type.d';
 import { MongoApp } from '@fastgpt/service/core/app/schema';
 import { ChatSourceEnum } from '@fastgpt/global/core/chat/constants';
 import { MongoChatItem } from '@fastgpt/service/core/chat/chatItemSchema';
@@ -10,12 +6,21 @@ import { MongoChat } from '@fastgpt/service/core/chat/chatSchema';
 import { addLog } from '@fastgpt/service/common/system/log';
 import { getChatTitleFromChatMessage } from '@fastgpt/global/core/chat/utils';
 import { mongoSessionRun } from '@fastgpt/service/common/mongo/sessionRun';
+import { StoreNodeItemType } from '@fastgpt/global/core/workflow/type';
+import {
+  getAppChatConfig,
+  getGuideModule,
+  splitGuideModule
+} from '@fastgpt/global/core/workflow/utils';
+import { AppChatConfigType } from '@fastgpt/global/core/app/type';
 
 type Props = {
   chatId: string;
   appId: string;
   teamId: string;
   tmbId: string;
+  nodes: StoreNodeItemType[];
+  appChatConfig?: AppChatConfigType;
   variables?: Record<string, any>;
   isUpdateUseTime: boolean;
   source: `${ChatSourceEnum}`;
@@ -30,6 +35,8 @@ export async function saveChat({
   appId,
   teamId,
   tmbId,
+  nodes,
+  appChatConfig,
   variables,
   isUpdateUseTime,
   source,
@@ -69,8 +76,15 @@ export async function saveChat({
         chat.title = title;
         chat.updateTime = new Date();
         chat.metadata = metadataUpdate;
+        chat.variables = variables || {};
         await chat.save({ session });
       } else {
+        const { welcomeText, variables: variableList } = getAppChatConfig({
+          chatConfig: appChatConfig,
+          systemConfigNode: getGuideModule(nodes),
+          isPublicFetch: false
+        });
+
         await MongoChat.create(
           [
             {
@@ -78,6 +92,8 @@ export async function saveChat({
               teamId,
               tmbId,
               appId,
+              variableList,
+              welcomeText,
               variables,
               title,
               source,

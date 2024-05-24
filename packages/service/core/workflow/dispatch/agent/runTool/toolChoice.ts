@@ -63,7 +63,7 @@ export const runToolWithToolChoice = async (
     > = {};
     item.toolParams.forEach((item) => {
       properties[item.key] = {
-        type: 'string',
+        type: item.valueType || 'string',
         description: item.toolDescription || ''
       };
     });
@@ -86,7 +86,34 @@ export const runToolWithToolChoice = async (
     messages,
     maxTokens: toolModel.maxContext - 300 // filter token. not response maxToken
   });
-
+  const formativeMessages = filterMessages.map((item) => {
+    if (item.role === 'assistant' && item.tool_calls) {
+      return {
+        ...item,
+        tool_calls: item.tool_calls.map((tool) => ({
+          id: tool.id,
+          type: tool.type,
+          function: tool.function
+        }))
+      };
+    }
+    return item;
+  });
+  // console.log(
+  //   JSON.stringify(
+  //     {
+  //       ...toolModel?.defaultConfig,
+  //       model: toolModel.model,
+  //       temperature: 0,
+  //       stream,
+  //       messages: formativeMessages,
+  //       tools,
+  //       tool_choice: 'auto'
+  //     },
+  //     null,
+  //     2
+  //   )
+  // );
   /* Run llm */
   const ai = getAIApi({
     timeout: 480000
@@ -97,7 +124,7 @@ export const runToolWithToolChoice = async (
       model: toolModel.model,
       temperature: 0,
       stream,
-      messages: filterMessages,
+      messages: formativeMessages,
       tools,
       tool_choice: 'auto'
     },
@@ -155,6 +182,7 @@ export const runToolWithToolChoice = async (
 
         const toolRunResponse = await dispatchWorkFlow({
           ...props,
+          isToolCall: true,
           runtimeNodes: runtimeNodes.map((item) =>
             item.nodeId === toolNode.nodeId
               ? {
@@ -326,7 +354,7 @@ async function streamResponse({
     }
 
     const responseChoice = part.choices?.[0]?.delta;
-    // console.log(JSON.stringify(responseChoice, null, 2));
+
     if (responseChoice?.content) {
       const content = responseChoice.content || '';
       textAnswer += content;
@@ -341,7 +369,7 @@ async function streamResponse({
     } else if (responseChoice?.tool_calls?.[0]) {
       const toolCall: ChatCompletionMessageToolCall = responseChoice.tool_calls[0];
 
-      // 流响应中,每次只会返回一个工具. 如果带了 id，说明是执行一个工具
+      // In a stream response, only one tool is returned at a time.  If have id, description is executing a tool
       if (toolCall.id) {
         const toolNode = toolNodes.find((item) => item.nodeId === toolCall.function?.name);
 
@@ -372,10 +400,14 @@ async function streamResponse({
             });
           }
         }
+
+        continue;
       }
+
       /* arg 插入最后一个工具的参数里 */
-      const arg: string = responseChoice.tool_calls?.[0]?.function?.arguments;
+      const arg: string = toolCall?.function?.arguments;
       const currentTool = toolCalls[toolCalls.length - 1];
+
       if (currentTool) {
         currentTool.function.arguments += arg;
 

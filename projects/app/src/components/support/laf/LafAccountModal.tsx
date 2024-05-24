@@ -67,7 +67,7 @@ const LafAccountModal = ({
       enabled: !!lafToken,
       onSuccess: (data) => {
         if (!getValues('appid') && data.length > 0) {
-          setValue('appid', data[0].appid);
+          setValue('appid', data.filter((app) => app.state === 'Running')[0]?.appid);
         }
       },
       onError: (err) => {
@@ -108,7 +108,9 @@ const LafAccountModal = ({
           </Box>
           <Box>
             <Link textDecoration={'underline'} href={`${feConfigs.lafEnv}/`} isExternal>
-              {t('support.user.Go laf env')}
+              {t('support.user.Go laf env', {
+                env: feConfigs.lafEnv?.split('//')[1]
+              })}
             </Link>
           </Box>
         </Box>
@@ -173,7 +175,13 @@ const LafAccountModal = ({
         )}
       </ModalBody>
       <ModalFooter>
-        <Button variant={'whiteBase'} onClick={onClose}>
+        <Button
+          variant={'whiteBase'}
+          onClick={() => {
+            initUserInfo();
+            onClose();
+          }}
+        >
           {t('common.Close')}
         </Button>
         {appid && (

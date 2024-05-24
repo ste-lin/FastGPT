@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react';
 import { NodeProps } from 'reactflow';
 import NodeCard from './render/NodeCard';
 import { FlowNodeItemType } from '@fastgpt/global/core/workflow/type/index.d';
-import dynamic from 'next/dynamic';
 import { Box, Button, Flex } from '@chakra-ui/react';
 import { SmallAddIcon } from '@chakra-ui/icons';
 import {
@@ -17,7 +16,6 @@ import type {
   EditNodeFieldType
 } from '@fastgpt/global/core/workflow/node/type.d';
 import { useTranslation } from 'next-i18next';
-import { useFlowProviderStore } from '../FlowProvider';
 import { WorkflowIOValueTypeEnum } from '@fastgpt/global/core/workflow/constants';
 import {
   FlowNodeInputMap,
@@ -26,6 +24,8 @@ import {
 } from '@fastgpt/global/core/workflow/node/constant';
 import { FlowValueTypeMap } from '@/web/core/workflow/constants/dataType';
 import VariableTable from '../nodes/render/VariableTable';
+import { useContextSelector } from 'use-context-selector';
+import { WorkflowContext } from '../../context';
 
 const defaultCreateField: EditNodeFieldType = {
   label: '',
@@ -50,7 +50,7 @@ const NodePluginInput = ({ data, selected }: NodeProps<FlowNodeItemType>) => {
   const { t } = useTranslation();
   const { nodeId, inputs, outputs } = data;
 
-  const { onChangeNode } = useFlowProviderStore();
+  const onChangeNode = useContextSelector(WorkflowContext, (v) => v.onChangeNode);
 
   const [createField, setCreateField] = useState<EditNodeFieldType>();
   const [editField, setEditField] = useState<EditNodeFieldType>();
@@ -146,17 +146,9 @@ const NodePluginInput = ({ data, selected }: NodeProps<FlowNodeItemType>) => {
               if (!input) return;
 
               setEditField({
+                ...input,
                 inputType: input.renderTypeList[0],
-                valueType: input.valueType,
-                key: input.key,
-                label: input.label,
-                description: input.description,
-                isToolInput: !!input.toolDescription,
-                defaultValue: input.defaultValue,
-                maxLength: input.maxLength,
-                max: input.max,
-                min: input.min,
-                dynamicParamDefaultValue: input.dynamicParamDefaultValue
+                isToolInput: !!input.toolDescription
               });
             }}
             onEdit={({ data, changeKey }) => {
@@ -165,20 +157,14 @@ const NodePluginInput = ({ data, selected }: NodeProps<FlowNodeItemType>) => {
               const output = outputs.find((output) => output.key === editField.key);
 
               const newInput: FlowNodeInputItemType = {
+                ...data,
                 key: data.key,
-                valueType: data.valueType,
                 label: data.label || '',
                 renderTypeList: [data.inputType],
-                required: data.required,
-                description: data.description,
                 toolDescription: data.isToolInput ? data.description : undefined,
                 canEdit: true,
                 value: data.defaultValue,
-                editField: dynamicInputEditField,
-                maxLength: data.maxLength,
-                max: data.max,
-                min: data.min,
-                dynamicParamDefaultValue: data.dynamicParamDefaultValue
+                editField: dynamicInputEditField
               };
               const newOutput: FlowNodeOutputItemType = {
                 ...(output as FlowNodeOutputItemType),

@@ -56,7 +56,7 @@ export const runToolWithFunctionCall = async (
     > = {};
     item.toolParams.forEach((item) => {
       properties[item.key] = {
-        type: 'string',
+        type: item.valueType || 'string',
         description: item.toolDescription || ''
       };
     });
@@ -76,6 +76,18 @@ export const runToolWithFunctionCall = async (
     messages,
     maxTokens: toolModel.maxContext - 500 // filter token. not response maxToken
   });
+  const formativeMessages = filterMessages.map((item) => {
+    if (item.role === ChatCompletionRequestMessageRoleEnum.Assistant && item.function_call) {
+      return {
+        ...item,
+        function_call: {
+          name: item.function_call?.name,
+          arguments: item.function_call?.arguments
+        }
+      };
+    }
+    return item;
+  });
 
   /* Run llm */
   const ai = getAIApi({
@@ -87,7 +99,7 @@ export const runToolWithFunctionCall = async (
       model: toolModel.model,
       temperature: 0,
       stream,
-      messages: filterMessages,
+      messages: formativeMessages,
       functions,
       function_call: 'auto'
     },
@@ -149,6 +161,7 @@ export const runToolWithFunctionCall = async (
 
         const toolRunResponse = await dispatchWorkFlow({
           ...props,
+          isToolCall: true,
           runtimeNodes: runtimeNodes.map((item) =>
             item.nodeId === toolNode.nodeId
               ? {
@@ -372,7 +385,10 @@ async function streamResponse({
             });
           }
         }
+
+        continue;
       }
+
       /* arg 插入最后一个工具的参数里 */
       const arg: string = functionCall?.arguments || '';
       const currentTool = functionCalls[functionCalls.length - 1];

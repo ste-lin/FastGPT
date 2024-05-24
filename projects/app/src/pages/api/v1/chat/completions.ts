@@ -3,7 +3,6 @@ import { authApp } from '@fastgpt/service/support/permission/auth/app';
 import { authCert } from '@fastgpt/service/support/permission/auth/common';
 import { sseErrRes, jsonRes } from '@fastgpt/service/common/response';
 import { addLog } from '@fastgpt/service/common/system/log';
-import { withNextCors } from '@fastgpt/service/common/middle/cors';
 import { ChatRoleEnum, ChatSourceEnum } from '@fastgpt/global/core/chat/constants';
 import { SseResponseEventEnum } from '@fastgpt/global/core/workflow/runtime/constants';
 import { dispatchWorkFlow } from '@fastgpt/service/core/workflow/dispatch';
@@ -11,6 +10,7 @@ import type { ChatCompletionCreateParams } from '@fastgpt/global/core/ai/type.d'
 import type { ChatCompletionMessageParam } from '@fastgpt/global/core/ai/type.d';
 import {
   getDefaultEntryNodeIds,
+  getMaxHistoryLimitFromNodes,
   initWorkflowEdgeStatus,
   storeNodes2RuntimeNodes,
   textAdaptGptResponse
@@ -25,7 +25,10 @@ import { pushResult2Remote, addOutLinkUsage } from '@fastgpt/service/support/out
 import requestIp from 'request-ip';
 import { getUsageSourceByAuthType } from '@fastgpt/global/support/wallet/usage/tools';
 import { authTeamSpaceToken } from '@/service/support/permission/auth/team';
-import { filterPublicNodeResponseData } from '@fastgpt/global/core/chat/utils';
+import {
+  filterPublicNodeResponseData,
+  removeEmptyUserInput
+} from '@fastgpt/global/core/chat/utils';
 import { updateApiKeyUsage } from '@fastgpt/service/support/openapi/tools';
 import { connectToDatabase } from '@/service/mongo';
 import { getUserChatInfoAndAuthTeamPoints } from '@/service/support/permission/auth/team';
@@ -42,6 +45,8 @@ import { DispatchNodeResponseKeyEnum } from '@fastgpt/global/core/workflow/runti
 
 import { dispatchWorkFlowV1 } from '@fastgpt/service/core/workflow/dispatchV1';
 import { setEntryEntries } from '@fastgpt/service/core/workflow/dispatchV1/utils';
+import { NextAPI } from '@/service/middleware/entry';
+import { getAppLatestVersion } from '@fastgpt/service/core/app/controller';
 
 type FastGptWebChatProps = {
   chatId?: string; // undefined: nonuse history, '': new chat, 'xxxxx': use history
@@ -73,7 +78,7 @@ type AuthResponseType = {
   outLinkUserId?: string;
 };
 
-export default withNextCors(async function handler(req: NextApiRequest, res: NextApiResponse) {
+async function handler(req: NextApiRequest, res: NextApiResponse) {
   res.on('close', () => {
     res.end();
   });
@@ -158,23 +163,26 @@ export default withNextCors(async function handler(req: NextApiRequest, res: Nex
         return authHeaderRequest({
           req,
           appId,
-          chatId,
-          detail
+          chatId
         });
       })();
 
-    // get and concat history
-    const { history } = await getChatItems({
-      appId: app._id,
-      chatId,
-      limit: 30,
-      field: `dataId obj value`
-    });
+    // 1. get and concat history; 2. get app workflow
+    const limit = getMaxHistoryLimitFromNodes(app.modules);
+    const [{ history }, { nodes, edges, chatConfig }] = await Promise.all([
+      getChatItems({
+        appId: app._id,
+        chatId,
+        limit,
+        field: `dataId obj value`
+      }),
+      getAppLatestVersion(app._id, app)
+    ]);
     const concatHistories = history.concat(chatMessages);
     const responseChatItemId: string | undefined = messages[messages.length - 1].dataId;
 
     /* start flow controller */
-    const { flowResponses, flowUsages, assistantResponses } = await (async () => {
+    const { flowResponses, flowUsages, assistantResponses, newVariables } = await (async () => {
       if (app.version === 'v2') {
         return dispatchWorkFlow({
           res,
@@ -185,13 +193,10 @@ export default withNextCors(async function handler(req: NextApiRequest, res: Nex
           appId: String(app._id),
           chatId,
           responseChatItemId,
-          runtimeNodes: storeNodes2RuntimeNodes(app.modules, getDefaultEntryNodeIds(app.modules)),
-          runtimeEdges: initWorkflowEdgeStatus(app.edges),
-          variables: {
-            ...variables,
-            userChatInput: text
-          },
-          inputFiles: files,
+          runtimeNodes: storeNodes2RuntimeNodes(nodes, getDefaultEntryNodeIds(nodes)),
+          runtimeEdges: initWorkflowEdgeStatus(edges),
+          variables,
+          query: removeEmptyUserInput(question.value),
           histories: concatHistories,
           stream,
           detail,
@@ -242,7 +247,9 @@ export default withNextCors(async function handler(req: NextApiRequest, res: Nex
         appId: app._id,
         teamId,
         tmbId: tmbId,
-        variables,
+        nodes,
+        appChatConfig: chatConfig,
+        variables: newVariables,
         isUpdateUseTime: isOwnerUse && source === ChatSourceEnum.online, // owner update use time
         shareId,
         outLinkUid: outLinkUserId,
@@ -284,12 +291,14 @@ export default withNextCors(async function handler(req: NextApiRequest, res: Nex
         data: '[DONE]'
       });
 
-      if (responseDetail && detail) {
-        responseWrite({
-          res,
-          event: SseResponseEventEnum.flowResponses,
-          data: JSON.stringify(feResponseData)
-        });
+      if (detail) {
+        if (responseDetail) {
+          responseWrite({
+            res,
+            event: SseResponseEventEnum.flowResponses,
+            data: JSON.stringify(feResponseData)
+          });
+        }
       }
 
       res.end();
@@ -301,7 +310,7 @@ export default withNextCors(async function handler(req: NextApiRequest, res: Nex
         return assistantResponses;
       })();
       res.json({
-        ...(detail ? { responseData: feResponseData } : {}),
+        ...(detail ? { responseData: feResponseData, newVariables } : {}),
         id: chatId || '',
         model: '',
         usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 1 },
@@ -349,13 +358,8 @@ export default withNextCors(async function handler(req: NextApiRequest, res: Nex
       });
     }
   }
-});
-
-export const config = {
-  api: {
-    responseLimit: '20mb'
-  }
-};
+}
+export default NextAPI(handler);
 
 const authShareChat = async ({
   chatId,
@@ -435,13 +439,11 @@ const authTeamSpaceChat = async ({
 const authHeaderRequest = async ({
   req,
   appId,
-  chatId,
-  detail
+  chatId
 }: {
   req: NextApiRequest;
   appId?: string;
   chatId?: string;
-  detail?: boolean;
 }): Promise<AuthResponseType> => {
   const {
     appId: apiKeyAppId,
@@ -509,9 +511,18 @@ const authHeaderRequest = async ({
     tmbId,
     user,
     app,
-    responseDetail: detail,
+    responseDetail: true,
     apikey,
     authType,
     canWrite
   };
+};
+
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '20mb'
+    },
+    responseLimit: '20mb'
+  }
 };

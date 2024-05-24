@@ -33,7 +33,7 @@ type HttpRequestProps = ModuleDispatchProps<{
   [key: string]: any;
 }>;
 type HttpResponse = DispatchNodeResultType<{
-  [NodeOutputKeyEnum.failed]?: boolean;
+  [NodeOutputKeyEnum.error]?: object;
   [key: string]: any;
 }>;
 
@@ -45,10 +45,12 @@ export const dispatchHttp468Request = async (props: HttpRequestProps): Promise<H
     detail,
     appId,
     chatId,
+    stream,
     responseChatItemId,
     variables,
     node: { outputs },
     histories,
+    isToolCall,
     params: {
       system_httpMethod: httpMethod = 'POST',
       system_httpReqUrl: httpReqUrl,
@@ -69,7 +71,7 @@ export const dispatchHttp468Request = async (props: HttpRequestProps): Promise<H
     chatId,
     responseChatItemId,
     ...variables,
-    histories: histories.slice(-10),
+    histories: histories?.slice(-10) || [],
     ...body,
     ...dynamicInput
   };
@@ -131,7 +133,7 @@ export const dispatchHttp468Request = async (props: HttpRequestProps): Promise<H
       results[key] = valueTypeFormat(formatResponse[key], output.valueType);
     }
 
-    if (typeof formatResponse[NodeOutputKeyEnum.answerText] === 'string') {
+    if (stream && typeof formatResponse[NodeOutputKeyEnum.answerText] === 'string') {
       responseWrite({
         res,
         event: detail ? SseResponseEventEnum.fastAnswer : undefined,
@@ -149,16 +151,17 @@ export const dispatchHttp468Request = async (props: HttpRequestProps): Promise<H
         headers: Object.keys(headers).length > 0 ? headers : undefined,
         httpResult: rawResponse
       },
-      [DispatchNodeResponseKeyEnum.toolResponses]: results,
+      [DispatchNodeResponseKeyEnum.toolResponses]:
+        Object.keys(results).length > 0 ? results : rawResponse,
       [NodeOutputKeyEnum.httpRawResponse]: rawResponse,
       ...results
     };
   } catch (error) {
     addLog.error('Http request error', error);
+
     return {
-      [NodeOutputKeyEnum.failed]: true,
+      [NodeOutputKeyEnum.error]: formatHttpError(error),
       [DispatchNodeResponseKeyEnum.nodeResponse]: {
-        totalPoints: 0,
         params: Object.keys(params).length > 0 ? params : undefined,
         body: Object.keys(requestBody).length > 0 ? requestBody : undefined,
         headers: Object.keys(headers).length > 0 ? headers : undefined,

@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 import { jsonRes } from '@fastgpt/service/common/response';
 import { connectToDatabase } from '@/service/mongo';
 import type { InitChatResponse, InitOutLinkChatProps } from '@/global/core/chat/api.d';
-import { getGuideModule } from '@fastgpt/global/core/workflow/utils';
+import { getGuideModule, getAppChatConfig } from '@fastgpt/global/core/workflow/utils';
 import { getChatModelNameListByModules } from '@/service/core/app/workflow';
 import { DispatchNodeResponseKeyEnum } from '@fastgpt/global/core/workflow/runtime/constants';
 import { getChatItems } from '@fastgpt/service/core/chat/controller';
@@ -14,6 +14,7 @@ import { AppErrEnum } from '@fastgpt/global/common/error/code/app';
 import { MongoChat } from '@fastgpt/service/core/chat/chatSchema';
 import { ChatErrEnum } from '@fastgpt/global/common/error/code/chat';
 import { ChatRoleEnum } from '@fastgpt/global/core/chat/constants';
+import { getAppLatestVersion } from '@fastgpt/service/core/app/controller';
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
@@ -40,14 +41,19 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       throw new Error(ChatErrEnum.unAuthChat);
     }
 
-    const { history } = await getChatItems({
-      appId: app._id,
-      chatId,
-      limit: 30,
-      field: `dataId obj value userGoodFeedback userBadFeedback ${
-        shareChat.responseDetail ? `adminFeedback ${DispatchNodeResponseKeyEnum.nodeResponse}` : ''
-      } `
-    });
+    const [{ history }, { nodes }] = await Promise.all([
+      getChatItems({
+        appId: app._id,
+        chatId,
+        limit: 30,
+        field: `dataId obj value userGoodFeedback userBadFeedback ${
+          shareChat.responseDetail
+            ? `adminFeedback ${DispatchNodeResponseKeyEnum.nodeResponse}`
+            : ''
+        } `
+      }),
+      getAppLatestVersion(app._id, app)
+    ]);
 
     // pick share response field
     history.forEach((item) => {
@@ -66,8 +72,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         variables: chat?.variables || {},
         history,
         app: {
-          userGuideModule: getGuideModule(app.modules),
-          chatModels: getChatModelNameListByModules(app.modules),
+          chatConfig: getAppChatConfig({
+            chatConfig: app.chatConfig,
+            systemConfigNode: getGuideModule(nodes),
+            storeVariables: chat?.variableList,
+            storeWelcomeText: chat?.welcomeText,
+            isPublicFetch: false
+          }),
+          chatModels: getChatModelNameListByModules(nodes),
           name: app.name,
           avatar: app.avatar,
           intro: app.intro

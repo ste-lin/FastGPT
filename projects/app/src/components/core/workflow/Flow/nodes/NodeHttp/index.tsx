@@ -20,7 +20,6 @@ import {
   useDisclosure
 } from '@chakra-ui/react';
 import { NodeInputKeyEnum } from '@fastgpt/global/core/workflow/constants';
-import { useFlowProviderStore } from '../../FlowProvider';
 import { useTranslation } from 'next-i18next';
 import Tabs from '@/components/Tabs';
 import MyIcon from '@fastgpt/web/components/common/Icon';
@@ -29,18 +28,18 @@ import { useToast } from '@fastgpt/web/hooks/useToast';
 import MyTooltip from '@fastgpt/web/components/common/MyTooltip';
 import { QuestionOutlineIcon } from '@chakra-ui/icons';
 import JSONEditor from '@fastgpt/web/components/common/Textarea/JsonEditor';
-import {
-  formatEditorVariablePickerIcon,
-  getGuideModule,
-  splitGuideModule
-} from '@fastgpt/global/core/workflow/utils';
+import { formatEditorVariablePickerIcon } from '@fastgpt/global/core/workflow/utils';
 import { EditorVariablePickerType } from '@fastgpt/web/components/common/Textarea/PromptEditor/type';
 import HttpInput from '@fastgpt/web/components/common/Input/HttpInput';
 import dynamic from 'next/dynamic';
 import MySelect from '@fastgpt/web/components/common/MySelect';
 import RenderToolInput from '../render/RenderToolInput';
 import IOTitle from '../../components/IOTitle';
-import { getSystemVariables } from '@/web/core/app/utils';
+import { useContextSelector } from 'use-context-selector';
+import { WorkflowContext } from '../../../context';
+import { getWorkflowGlobalVariables } from '@/web/core/workflow/utils';
+import { useMemoizedFn } from 'ahooks';
+import { AppContext } from '@/web/core/app/context/appContext';
 const CurlImportModal = dynamic(() => import('./CurlImportModal'));
 
 export const HttpHeaders = [
@@ -104,168 +103,143 @@ const RenderHttpMethodAndUrl = React.memo(function RenderHttpMethodAndUrl({
 }) {
   const { t } = useTranslation();
   const { toast } = useToast();
-  const [_, startSts] = useTransition();
-  const { onChangeNode } = useFlowProviderStore();
+  const onChangeNode = useContextSelector(WorkflowContext, (v) => v.onChangeNode);
 
   const { isOpen: isOpenCurl, onOpen: onOpenCurl, onClose: onCloseCurl } = useDisclosure();
 
   const requestMethods = inputs.find((item) => item.key === NodeInputKeyEnum.httpMethod);
   const requestUrl = inputs.find((item) => item.key === NodeInputKeyEnum.httpReqUrl);
 
-  const onChangeUrl = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      startSts(() => {
-        onChangeNode({
-          nodeId,
-          type: 'updateInput',
-          key: NodeInputKeyEnum.httpReqUrl,
-          value: {
-            ...requestUrl,
-            value: e.target.value
-          }
-        });
-      });
-    },
-    [nodeId, onChangeNode, requestUrl]
-  );
-  const onBlurUrl = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const val = e.target.value;
-      // 拆分params和url
-      const url = val.split('?')[0];
-      const params = val.split('?')[1];
-      if (params) {
-        const paramsArr = params.split('&');
-        const paramsObj = paramsArr.reduce((acc, cur) => {
-          const [key, value] = cur.split('=');
-          return {
-            ...acc,
-            [key]: value
-          };
-        }, {});
-        const inputParams = inputs.find((item) => item.key === NodeInputKeyEnum.httpParams);
-
-        if (!inputParams || Object.keys(paramsObj).length === 0) return;
-
-        const concatParams: PropsArrType[] = inputParams?.value || [];
-        Object.entries(paramsObj).forEach(([key, value]) => {
-          if (!concatParams.find((item) => item.key === key)) {
-            concatParams.push({ key, value: value as string, type: 'string' });
-          }
-        });
-
-        onChangeNode({
-          nodeId,
-          type: 'updateInput',
-          key: NodeInputKeyEnum.httpParams,
-          value: {
-            ...inputParams,
-            value: concatParams
-          }
-        });
-
-        onChangeNode({
-          nodeId,
-          type: 'updateInput',
-          key: NodeInputKeyEnum.httpReqUrl,
-          value: {
-            ...requestUrl,
-            value: url
-          }
-        });
-
-        toast({
-          status: 'success',
-          title: t('core.module.http.Url and params have been split')
-        });
+  const onChangeUrl = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onChangeNode({
+      nodeId,
+      type: 'updateInput',
+      key: NodeInputKeyEnum.httpReqUrl,
+      value: {
+        ...requestUrl,
+        value: e.target.value
       }
-    },
-    [inputs, nodeId, onChangeNode, requestUrl, t, toast]
-  );
+    });
+  };
+  const onBlurUrl = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    // 拆分params和url
+    const url = val.split('?')[0];
+    const params = val.split('?')[1];
+    if (params) {
+      const paramsArr = params.split('&');
+      const paramsObj = paramsArr.reduce((acc, cur) => {
+        const [key, value] = cur.split('=');
+        return {
+          ...acc,
+          [key]: value
+        };
+      }, {});
+      const inputParams = inputs.find((item) => item.key === NodeInputKeyEnum.httpParams);
 
-  const Render = useMemo(() => {
-    return (
-      <Box>
-        <Box mb={2} display={'flex'} justifyContent={'space-between'}>
-          <Box fontWeight={'medium'} color={'myGray.600'}>
-            {t('core.module.Http request settings')}
-          </Box>
-          <Button variant={'link'} onClick={onOpenCurl}>
-            {t('core.module.http.curl import')}
-          </Button>
+      if (!inputParams || Object.keys(paramsObj).length === 0) return;
+
+      const concatParams: PropsArrType[] = inputParams?.value || [];
+      Object.entries(paramsObj).forEach(([key, value]) => {
+        if (!concatParams.find((item) => item.key === key)) {
+          concatParams.push({ key, value: value as string, type: 'string' });
+        }
+      });
+
+      onChangeNode({
+        nodeId,
+        type: 'updateInput',
+        key: NodeInputKeyEnum.httpParams,
+        value: {
+          ...inputParams,
+          value: concatParams
+        }
+      });
+
+      onChangeNode({
+        nodeId,
+        type: 'updateInput',
+        key: NodeInputKeyEnum.httpReqUrl,
+        value: {
+          ...requestUrl,
+          value: url
+        }
+      });
+
+      toast({
+        status: 'success',
+        title: t('core.module.http.Url and params have been split')
+      });
+    }
+  };
+
+  return (
+    <Box>
+      <Box mb={2} display={'flex'} justifyContent={'space-between'}>
+        <Box fontWeight={'medium'} color={'myGray.600'}>
+          {t('core.module.Http request settings')}
         </Box>
-        <Flex alignItems={'center'} className="nodrag">
-          <MySelect
-            h={'34px'}
-            w={'88px'}
-            bg={'white'}
-            width={'100%'}
-            value={requestMethods?.value}
-            list={[
-              {
-                label: 'GET',
-                value: 'GET'
-              },
-              {
-                label: 'POST',
-                value: 'POST'
-              },
-              {
-                label: 'PUT',
-                value: 'PUT'
-              },
-              {
-                label: 'DELETE',
-                value: 'DELETE'
-              },
-              {
-                label: 'PATCH',
-                value: 'PATCH'
-              }
-            ]}
-            onchange={(e) => {
-              onChangeNode({
-                nodeId,
-                type: 'updateInput',
-                key: NodeInputKeyEnum.httpMethod,
-                value: {
-                  ...requestMethods,
-                  value: e
-                }
-              });
-            }}
-          />
-          <Input
-            flex={'1 0 0'}
-            ml={2}
-            h={'34px'}
-            bg={'white'}
-            value={requestUrl?.value}
-            placeholder={t('core.module.input.label.Http Request Url')}
-            fontSize={'xs'}
-            onChange={onChangeUrl}
-            onBlur={onBlurUrl}
-          />
-        </Flex>
-
-        {isOpenCurl && <CurlImportModal nodeId={nodeId} inputs={inputs} onClose={onCloseCurl} />}
+        <Button variant={'link'} onClick={onOpenCurl}>
+          {t('core.module.http.curl import')}
+        </Button>
       </Box>
-    );
-  }, [
-    inputs,
-    isOpenCurl,
-    nodeId,
-    onBlurUrl,
-    onChangeNode,
-    onChangeUrl,
-    onCloseCurl,
-    onOpenCurl,
-    requestMethods,
-    requestUrl?.value,
-    t
-  ]);
+      <Flex alignItems={'center'} className="nodrag">
+        <MySelect
+          h={'34px'}
+          w={'88px'}
+          bg={'white'}
+          width={'100%'}
+          value={requestMethods?.value}
+          list={[
+            {
+              label: 'GET',
+              value: 'GET'
+            },
+            {
+              label: 'POST',
+              value: 'POST'
+            },
+            {
+              label: 'PUT',
+              value: 'PUT'
+            },
+            {
+              label: 'DELETE',
+              value: 'DELETE'
+            },
+            {
+              label: 'PATCH',
+              value: 'PATCH'
+            }
+          ]}
+          onchange={(e) => {
+            onChangeNode({
+              nodeId,
+              type: 'updateInput',
+              key: NodeInputKeyEnum.httpMethod,
+              value: {
+                ...requestMethods,
+                value: e
+              }
+            });
+          }}
+        />
+        <Input
+          flex={'1 0 0'}
+          ml={2}
+          h={'34px'}
+          bg={'white'}
+          value={requestUrl?.value || ''}
+          placeholder={t('core.module.input.label.Http Request Url')}
+          fontSize={'xs'}
+          onChange={onChangeUrl}
+          onBlur={onBlurUrl}
+        />
+      </Flex>
 
-  return Render;
+      {isOpenCurl && <CurlImportModal nodeId={nodeId} inputs={inputs} onClose={onCloseCurl} />}
+    </Box>
+  );
 });
 
 export function RenderHttpProps({
@@ -277,7 +251,8 @@ export function RenderHttpProps({
 }) {
   const { t } = useTranslation();
   const [selectedTab, setSelectedTab] = useState(TabEnum.params);
-  const { nodeList } = useFlowProviderStore();
+  const nodeList = useContextSelector(WorkflowContext, (v) => v.nodeList);
+  const { appDetail } = useContextSelector(AppContext, (v) => v);
 
   const requestMethods = inputs.find((item) => item.key === NodeInputKeyEnum.httpMethod)?.value;
   const params = inputs.find((item) => item.key === NodeInputKeyEnum.httpParams);
@@ -289,11 +264,11 @@ export function RenderHttpProps({
 
   // get variable
   const variables = useMemo(() => {
-    const globalVariables = formatEditorVariablePickerIcon(
-      splitGuideModule(getGuideModule(nodeList))?.variableModules || []
-    );
-
-    const systemVariables = getSystemVariables(t);
+    const globalVariables = getWorkflowGlobalVariables({
+      nodes: nodeList,
+      chatConfig: appDetail.chatConfig,
+      t
+    });
 
     const moduleVariables = formatEditorVariablePickerIcon(
       inputs
@@ -304,8 +279,8 @@ export function RenderHttpProps({
         }))
     );
 
-    return [...moduleVariables, ...globalVariables, ...systemVariables];
-  }, [inputs, nodeList, t]);
+    return [...moduleVariables, ...globalVariables];
+  }, [appDetail.chatConfig, inputs, nodeList, t]);
 
   const variableText = useMemo(() => {
     return variables
@@ -407,7 +382,7 @@ const RenderForm = ({
 }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
-  const { onChangeNode } = useFlowProviderStore();
+  const onChangeNode = useContextSelector(WorkflowContext, (v) => v.onChangeNode);
 
   const [list, setList] = useState<PropsArrType[]>(input.value || []);
   const [updateTrigger, setUpdateTrigger] = useState(false);
@@ -601,7 +576,7 @@ const RenderJson = ({
   variables: EditorVariablePickerType[];
 }) => {
   const { t } = useTranslation();
-  const { onChangeNode } = useFlowProviderStore();
+  const onChangeNode = useContextSelector(WorkflowContext, (v) => v.onChangeNode);
   const [_, startSts] = useTransition();
 
   const Render = useMemo(() => {
@@ -650,18 +625,20 @@ const RenderPropsItem = ({ text, num }: { text: string; num: number }) => {
 const NodeHttp = ({ data, selected }: NodeProps<FlowNodeItemType>) => {
   const { t } = useTranslation();
   const { nodeId, inputs, outputs } = data;
-  const { splitToolInputs } = useFlowProviderStore();
+  const splitToolInputs = useContextSelector(WorkflowContext, (v) => v.splitToolInputs);
   const { toolInputs, commonInputs, isTool } = splitToolInputs(inputs, nodeId);
 
-  const CustomComponents = useMemo(
-    () => ({
-      [NodeInputKeyEnum.httpMethod]: () => (
-        <RenderHttpMethodAndUrl nodeId={nodeId} inputs={inputs} />
-      ),
-      [NodeInputKeyEnum.httpHeaders]: () => <RenderHttpProps nodeId={nodeId} inputs={inputs} />
-    }),
-    [inputs, nodeId]
-  );
+  const HttpMethodAndUrl = useMemoizedFn(() => (
+    <RenderHttpMethodAndUrl nodeId={nodeId} inputs={inputs} />
+  ));
+  const Headers = useMemoizedFn(() => <RenderHttpProps nodeId={nodeId} inputs={inputs} />);
+
+  const CustomComponents = useMemo(() => {
+    return {
+      [NodeInputKeyEnum.httpMethod]: HttpMethodAndUrl,
+      [NodeInputKeyEnum.httpHeaders]: Headers
+    };
+  }, [Headers, HttpMethodAndUrl]);
 
   return (
     <NodeCard minW={'350px'} selected={selected} {...data}>
