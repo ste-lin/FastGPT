@@ -27,9 +27,10 @@ export const ToolModule: FlowNodeTemplateType = {
   sourceHandle: getHandleConfig(true, true, false, true),
   targetHandle: getHandleConfig(true, true, false, true),
   avatar: '/imgs/workflow/tool.svg',
-  name: '工具调用（实验）',
+  name: '工具调用(实验)',
   intro: '通过AI模型自动选择一个或多个功能块进行调用，也可以对插件进行调用。',
   showStatus: true,
+  version: '481',
   inputs: [
     {
       ...Input_Template_SettingAiModel,
@@ -64,5 +65,14 @@ export const ToolModule: FlowNodeTemplateType = {
     Input_Template_History,
     Input_Template_UserChatInput
   ],
-  outputs: []
+  outputs: [
+    {
+      id: NodeOutputKeyEnum.answerText,
+      key: NodeOutputKeyEnum.answerText,
+      label: 'core.module.output.label.Ai response content',
+      description: 'core.module.output.description.Ai response content',
+      valueType: WorkflowIOValueTypeEnum.string,
+      type: FlowNodeOutputTypeEnum.static
+    }
+  ]
 };

@@ -8,7 +8,17 @@ import {
   TeamMemberCollectionName
 } from '@fastgpt/global/support/user/team/constant';
 
-export const appCollectionName = 'apps';
+export const AppCollectionName = 'apps';
+
+export const chatConfigType = {
+  welcomeText: String,
+  variables: Array,
+  questionGuide: Boolean,
+  ttsConfig: Object,
+  whisperConfig: Object,
+  scheduledTriggerConfig: Object,
+  chatInputGuide: Object
+};
 
 const AppSchema = new Schema({
   teamId: {
@@ -46,6 +56,18 @@ const AppSchema = new Schema({
     type: Date,
     default: () => new Date()
   },
+
+  // role and auth
+  permission: {
+    type: String,
+    enum: Object.keys(PermissionTypeMap),
+    default: PermissionTypeEnum.private
+  },
+  teamTags: {
+    type: [String]
+  },
+
+  // tmp store
   modules: {
     type: Array,
     default: []
@@ -53,6 +75,10 @@ const AppSchema = new Schema({
   edges: {
     type: Array,
     default: []
+  },
+  chatConfig: {
+    type: chatConfigType,
+    default: {}
   },
 
   scheduledTriggerConfig: {
@@ -72,14 +98,6 @@ const AppSchema = new Schema({
 
   inited: {
     type: Boolean
-  },
-  permission: {
-    type: String,
-    enum: Object.keys(PermissionTypeMap),
-    default: PermissionTypeEnum.private
-  },
-  teamTags: {
-    type: [String]
   }
 });
 
@@ -92,6 +110,6 @@ try {
 }
 
 export const MongoApp: Model<AppType> =
-  models[appCollectionName] || model(appCollectionName, AppSchema);
+  models[AppCollectionName] || model(AppCollectionName, AppSchema);
 
 MongoApp.syncIndexes();

@@ -1,14 +1,15 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Box, Button, Card, Flex } from '@chakra-ui/react';
 import MyIcon from '@fastgpt/web/components/common/Icon';
 import Avatar from '@/components/Avatar';
-import type { FlowNodeItemType } from '@fastgpt/global/core/workflow/type/index.d';
+import type {
+  FlowNodeItemType,
+  FlowNodeTemplateType
+} from '@fastgpt/global/core/workflow/type/index.d';
 import { useTranslation } from 'next-i18next';
 import { useEditTitle } from '@/web/common/hooks/useEditTitle';
 import { useToast } from '@fastgpt/web/hooks/useToast';
-import { useFlowProviderStore } from '../../FlowProvider';
 import { FlowNodeTypeEnum } from '@fastgpt/global/core/workflow/node/constant';
-import { useSystemStore } from '@/web/common/system/useSystemStore';
 import { useConfirm } from '@fastgpt/web/hooks/useConfirm';
 import { LOGO_ICON } from '@fastgpt/global/common/system/constants';
 import { ToolTargetHandle } from './Handle/ToolHandle';
@@ -18,9 +19,16 @@ import { useDebug } from '../../hooks/useDebug';
 import { ResponseBox } from '@/components/ChatBox/WholeResponseModal';
 import EmptyTip from '@fastgpt/web/components/common/EmptyTip';
 import { getPreviewPluginModule } from '@/web/core/plugin/api';
-import { getErrText } from '@fastgpt/global/common/error/utils';
-import { storeNode2FlowNode } from '@/web/core/workflow/utils';
+import { storeNode2FlowNode, updateFlowNodeVersion } from '@/web/core/workflow/utils';
 import { getNanoid } from '@fastgpt/global/common/string/tools';
+import { useContextSelector } from 'use-context-selector';
+import { WorkflowContext } from '../../../context';
+import { useI18n } from '@/web/context/I18n';
+import { moduleTemplatesFlat } from '@fastgpt/global/core/workflow/template/constants';
+import { QuestionOutlineIcon } from '@chakra-ui/icons';
+import MyTooltip from '@/components/MyTooltip';
+import { isEqual } from 'lodash';
+import { useSystemStore } from '@/web/common/system/useSystemStore';
 
 type Props = FlowNodeItemType & {
   children?: React.ReactNode | React.ReactNode[] | string;
@@ -37,6 +45,10 @@ type Props = FlowNodeItemType & {
 
 const NodeCard = (props: Props) => {
   const { t } = useTranslation();
+  const { appT } = useI18n();
+
+  const { toast } = useToast();
+
   const {
     children,
     avatar = LOGO_ICON,
@@ -46,7 +58,6 @@ const NodeCard = (props: Props) => {
     maxW = '600px',
     nodeId,
     flowNodeType,
-    inputs,
     selected,
     menuForbid,
     isTool = false,
@@ -55,20 +66,78 @@ const NodeCard = (props: Props) => {
     pluginId
   } = props;
 
-  const { nodeList, setHoverNodeId, onUpdateNodeError } = useFlowProviderStore();
+  const nodeList = useContextSelector(WorkflowContext, (v) => v.nodeList);
+  const setHoverNodeId = useContextSelector(WorkflowContext, (v) => v.setHoverNodeId);
+  const onUpdateNodeError = useContextSelector(WorkflowContext, (v) => v.onUpdateNodeError);
+  const onChangeNode = useContextSelector(WorkflowContext, (v) => v.onChangeNode);
+  const onResetNode = useContextSelector(WorkflowContext, (v) => v.onResetNode);
+
+  const [hasNewVersion, setHasNewVersion] = useState(false);
+  const { setLoading } = useSystemStore();
+
+  // custom title edit
+  const { onOpenModal: onOpenCustomTitleModal, EditModal: EditTitleModal } = useEditTitle({
+    title: t('common.Custom Title'),
+    placeholder: appT('module.Custom Title Tip') || ''
+  });
 
   const showToolHandle = useMemo(
     () => isTool && !!nodeList.find((item) => item?.flowNodeType === FlowNodeTypeEnum.tools),
     [isTool, nodeList]
   );
 
+  const node = nodeList.find((node) => node.nodeId === nodeId);
+  const { openConfirm: onOpenConfirmSync, ConfirmModal: ConfirmSyncModal } = useConfirm({
+    content: appT('module.Confirm Sync')
+  });
+
+  useEffect(() => {
+    const fetchPluginModule = async () => {
+      if (node?.flowNodeType === FlowNodeTypeEnum.pluginModule) {
+        if (!node?.pluginId) return;
+        const template = await getPreviewPluginModule(node.pluginId);
+        setHasNewVersion(!!template.nodeVersion && node.nodeVersion !== template.nodeVersion);
+      } else {
+        const template = moduleTemplatesFlat.find(
+          (item) => item.flowNodeType === node?.flowNodeType
+        );
+        setHasNewVersion(node?.version !== template?.version);
+      }
+    };
+
+    fetchPluginModule();
+  }, [node]);
+
+  const template = moduleTemplatesFlat.find((item) => item.flowNodeType === node?.flowNodeType);
+
+  const onClickSyncVersion = useCallback(async () => {
+    try {
+      setLoading(true);
+      if (!node || !template) return;
+      if (node?.flowNodeType === 'pluginModule') {
+        if (!node.pluginId) return;
+        onResetNode({
+          id: nodeId,
+          node: await getPreviewPluginModule(node.pluginId)
+        });
+      } else {
+        onResetNode({
+          id: nodeId,
+          node: updateFlowNodeVersion(node, template)
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching plugin module:', error);
+    }
+    setLoading(false);
+  }, [node, nodeId, onResetNode, setLoading, template]);
+
   /* Node header */
   const Header = useMemo(() => {
     return (
       <Box position={'relative'}>
         {/* debug */}
-        <NodeDebugResponse nodeId={nodeId} debugResult={debugResult} />
-        <Box className="custom-drag-handle" px={4} py={3}>
+        <Box px={4} py={3}>
           {/* tool target handle */}
           {showToolHandle && <ToolTargetHandle nodeId={nodeId} />}
 
@@ -78,109 +147,155 @@ const NodeCard = (props: Props) => {
             <Box ml={3} fontSize={'lg'} fontWeight={'medium'}>
               {t(name)}
             </Box>
+            {!menuForbid?.rename && (
+              <MyIcon
+                className="controller-rename"
+                display={'none'}
+                name={'edit'}
+                w={'14px'}
+                cursor={'pointer'}
+                ml={1}
+                color={'myGray.500'}
+                _hover={{ color: 'primary.600' }}
+                onClick={() => {
+                  onOpenCustomTitleModal({
+                    defaultVal: name,
+                    onSuccess: (e) => {
+                      if (!e) {
+                        return toast({
+                          title: appT('modules.Title is required'),
+                          status: 'warning'
+                        });
+                      }
+                      onChangeNode({
+                        nodeId,
+                        type: 'attr',
+                        key: 'name',
+                        value: e
+                      });
+                    }
+                  });
+                }}
+              />
+            )}
+            <Box flex={1} />
+            {hasNewVersion && (
+              <MyTooltip label={appT('app.modules.click to update')}>
+                <Button
+                  bg={'yellow.50'}
+                  color={'yellow.600'}
+                  variant={'ghost'}
+                  h={8}
+                  px={2}
+                  rounded={'6px'}
+                  fontSize={'xs'}
+                  fontWeight={'medium'}
+                  cursor={'pointer'}
+                  _hover={{ bg: 'yellow.100' }}
+                  onClick={onOpenConfirmSync(onClickSyncVersion)}
+                >
+                  <Box>{appT('app.modules.has new version')}</Box>
+                  <QuestionOutlineIcon ml={1} />
+                </Button>
+              </MyTooltip>
+            )}
           </Flex>
           <MenuRender
-            name={name}
             nodeId={nodeId}
             pluginId={pluginId}
             flowNodeType={flowNodeType}
-            inputs={inputs}
             menuForbid={menuForbid}
           />
           <NodeIntro nodeId={nodeId} intro={intro} />
         </Box>
+        <ConfirmSyncModal />
       </Box>
     );
   }, [
-    nodeId,
-    debugResult,
     showToolHandle,
+    nodeId,
     avatar,
     t,
     name,
+    menuForbid,
+    hasNewVersion,
+    appT,
+    onOpenConfirmSync,
+    onClickSyncVersion,
     pluginId,
     flowNodeType,
-    inputs,
-    menuForbid,
-    intro
+    intro,
+    ConfirmSyncModal,
+    onOpenCustomTitleModal,
+    onChangeNode,
+    toast
   ]);
 
-  const Render = useMemo(() => {
-    return (
-      <Box
-        minW={minW}
-        maxW={maxW}
-        bg={'white'}
-        borderWidth={'1px'}
-        borderRadius={'md'}
-        boxShadow={'1'}
-        _hover={{
-          boxShadow: '4',
-          '& .controller-menu': {
-            display: 'flex'
-          },
-          '& .controller-debug': {
-            display: 'block'
+  return (
+    <Box
+      minW={minW}
+      maxW={maxW}
+      bg={'white'}
+      borderWidth={'1px'}
+      borderRadius={'md'}
+      boxShadow={'1'}
+      _hover={{
+        boxShadow: '4',
+        '& .controller-menu': {
+          display: 'flex'
+        },
+        '& .controller-debug': {
+          display: 'block'
+        },
+        '& .controller-rename': {
+          display: 'block'
+        }
+      }}
+      onMouseEnter={() => setHoverNodeId(nodeId)}
+      onMouseLeave={() => setHoverNodeId(undefined)}
+      {...(isError
+        ? {
+            borderColor: 'red.500',
+            onMouseDownCapture: () => onUpdateNodeError(nodeId, false)
           }
-        }}
-        onMouseEnter={() => setHoverNodeId(nodeId)}
-        onMouseLeave={() => setHoverNodeId(undefined)}
-        {...(isError
-          ? {
-              borderColor: 'red.500',
-              onMouseDownCapture: () => onUpdateNodeError(nodeId, false)
-            }
-          : {
-              borderColor: selected ? 'primary.600' : 'borderColor.base'
-            })}
-      >
-        {Header}
-        {children}
-        <ConnectionSourceHandle nodeId={nodeId} />
-        <ConnectionTargetHandle nodeId={nodeId} />
-      </Box>
-    );
-  }, [Header, children, isError, maxW, minW, nodeId, onUpdateNodeError, selected, setHoverNodeId]);
+        : {
+            borderColor: selected ? 'primary.600' : 'borderColor.base'
+          })}
+    >
+      <NodeDebugResponse nodeId={nodeId} debugResult={debugResult} />
+      {Header}
+      {children}
+      <ConnectionSourceHandle nodeId={nodeId} />
+      <ConnectionTargetHandle nodeId={nodeId} />
 
-  return Render;
+      <EditTitleModal maxLength={20} />
+    </Box>
+  );
 };
 
 export default React.memo(NodeCard);
 
 const MenuRender = React.memo(function MenuRender({
-  name,
   nodeId,
   pluginId,
   flowNodeType,
-  inputs,
   menuForbid
 }: {
-  name: string;
   nodeId: string;
   pluginId?: string;
   flowNodeType: Props['flowNodeType'];
-  inputs: Props['inputs'];
   menuForbid?: Props['menuForbid'];
 }) {
   const { t } = useTranslation();
-  const { toast } = useToast();
-  const { setLoading } = useSystemStore();
   const { openDebugNode, DebugInputModal } = useDebug();
 
-  const { openConfirm: onOpenConfirmSync, ConfirmModal: ConfirmSyncModal } = useConfirm({
-    content: t('module.Confirm Sync Plugin')
-  });
-  // custom title edit
-  const { onOpenModal: onOpenCustomTitleModal, EditModal: EditTitleModal } = useEditTitle({
-    title: t('common.Custom Title'),
-    placeholder: t('app.module.Custom Title Tip') || ''
-  });
   const { openConfirm: onOpenConfirmDeleteNode, ConfirmModal: ConfirmDeleteModal } = useConfirm({
     content: t('core.module.Confirm Delete Node'),
     type: 'delete'
   });
 
-  const { setNodes, setEdges, onResetNode, onChangeNode } = useFlowProviderStore();
+  const setNodes = useContextSelector(WorkflowContext, (v) => v.setNodes);
+  const setEdges = useContextSelector(WorkflowContext, (v) => v.setEdges);
 
   const onCopyNode = useCallback(
     (nodeId: string) => {
@@ -194,19 +309,24 @@ const MenuRender = React.memo(function MenuRender({
           flowNodeType: node.data.flowNodeType,
           inputs: node.data.inputs,
           outputs: node.data.outputs,
-          showStatus: node.data.showStatus
+          showStatus: node.data.showStatus,
+          pluginId: node.data.pluginId,
+          version: node.data.version
         };
         return state.concat(
           storeNode2FlowNode({
             item: {
+              flowNodeType: template.flowNodeType,
+              avatar: template.avatar,
               name: template.name,
               intro: template.intro,
               nodeId: getNanoid(),
               position: { x: node.position.x + 200, y: node.position.y + 50 },
-              flowNodeType: template.flowNodeType,
               showStatus: template.showStatus,
+              pluginId: template.pluginId,
               inputs: template.inputs,
-              outputs: template.outputs
+              outputs: template.outputs,
+              version: template.version
             }
           })
         );
@@ -232,61 +352,6 @@ const MenuRender = React.memo(function MenuRender({
               label: t('core.workflow.Debug'),
               variant: 'whiteBase',
               onClick: () => openDebugNode({ entryNodeId: nodeId })
-            }
-          ]),
-      ...(flowNodeType === FlowNodeTypeEnum.pluginModule
-        ? [
-            {
-              icon: 'common/refreshLight',
-              label: t('plugin.Synchronous version'),
-              variant: 'whiteBase',
-              onClick: () => {
-                if (!pluginId) return;
-                onOpenConfirmSync(async () => {
-                  try {
-                    setLoading(true);
-                    const pluginModule = await getPreviewPluginModule(pluginId);
-                    onResetNode({
-                      id: nodeId,
-                      module: pluginModule
-                    });
-                  } catch (e) {
-                    return toast({
-                      status: 'error',
-                      title: getErrText(e, t('plugin.Get Plugin Module Detail Failed'))
-                    });
-                  }
-                  setLoading(false);
-                })();
-              }
-            }
-          ]
-        : []),
-      ...(menuForbid?.rename
-        ? []
-        : [
-            {
-              icon: 'edit',
-              label: t('common.Rename'),
-              variant: 'whiteBase',
-              onClick: () =>
-                onOpenCustomTitleModal({
-                  defaultVal: name,
-                  onSuccess: (e) => {
-                    if (!e) {
-                      return toast({
-                        title: t('app.modules.Title is required'),
-                        status: 'warning'
-                      });
-                    }
-                    onChangeNode({
-                      nodeId,
-                      type: 'attr',
-                      key: 'name',
-                      value: e
-                    });
-                  }
-                })
             }
           ]),
       ...(menuForbid?.copy
@@ -340,36 +405,22 @@ const MenuRender = React.memo(function MenuRender({
             </Box>
           ))}
         </Box>
-        <EditTitleModal maxLength={20} />
-        <ConfirmSyncModal />
         <ConfirmDeleteModal />
         <DebugInputModal />
       </>
     );
   }, [
-    ConfirmDeleteModal,
-    ConfirmSyncModal,
-    DebugInputModal,
-    EditTitleModal,
-    flowNodeType,
-    menuForbid?.copy,
     menuForbid?.debug,
+    menuForbid?.copy,
     menuForbid?.delete,
-    menuForbid?.rename,
-    name,
-    nodeId,
-    onChangeNode,
-    onCopyNode,
-    onDelNode,
-    onOpenConfirmDeleteNode,
-    onOpenConfirmSync,
-    onOpenCustomTitleModal,
-    onResetNode,
-    openDebugNode,
-    pluginId,
-    setLoading,
     t,
-    toast
+    onOpenConfirmDeleteNode,
+    ConfirmDeleteModal,
+    DebugInputModal,
+    openDebugNode,
+    nodeId,
+    onCopyNode,
+    onDelNode
   ]);
 
   return Render;
@@ -383,9 +434,10 @@ const NodeIntro = React.memo(function NodeIntro({
   intro?: string;
 }) {
   const { t } = useTranslation();
-  const { onChangeNode, splitToolInputs } = useFlowProviderStore();
+  const splitToolInputs = useContextSelector(WorkflowContext, (ctx) => ctx.splitToolInputs);
+  const onChangeNode = useContextSelector(WorkflowContext, (v) => v.onChangeNode);
 
-  const moduleIsTool = useMemo(() => {
+  const NodeIsTool = useMemo(() => {
     const { isTool } = splitToolInputs([], nodeId);
     return isTool;
   }, [nodeId, splitToolInputs]);
@@ -404,7 +456,7 @@ const NodeIntro = React.memo(function NodeIntro({
           <Box fontSize={'xs'} color={'myGray.600'} flex={'1 0 0'}>
             {t(intro)}
           </Box>
-          {moduleIsTool && (
+          {NodeIsTool && (
             <Button
               size={'xs'}
               variant={'whiteBase'}
@@ -429,7 +481,7 @@ const NodeIntro = React.memo(function NodeIntro({
         <EditIntroModal maxLength={500} />
       </>
     );
-  }, [EditIntroModal, intro, moduleIsTool, nodeId, onChangeNode, onOpenIntroModal, t]);
+  }, [EditIntroModal, intro, NodeIsTool, nodeId, onChangeNode, onOpenIntroModal, t]);
 
   return Render;
 });
@@ -442,8 +494,12 @@ const NodeDebugResponse = React.memo(function NodeDebugResponse({
   debugResult: FlowNodeItemType['debugResult'];
 }) {
   const { t } = useTranslation();
-  const { onChangeNode, onStopNodeDebug, onNextNodeDebug, workflowDebugData } =
-    useFlowProviderStore();
+
+  const onChangeNode = useContextSelector(WorkflowContext, (v) => v.onChangeNode);
+  const onStopNodeDebug = useContextSelector(WorkflowContext, (v) => v.onStopNodeDebug);
+  const onNextNodeDebug = useContextSelector(WorkflowContext, (v) => v.onNextNodeDebug);
+  const workflowDebugData = useContextSelector(WorkflowContext, (v) => v.workflowDebugData);
+
   const { openConfirm, ConfirmModal } = useConfirm({
     content: t('core.workflow.Confirm stop debug')
   });
@@ -513,11 +569,15 @@ const NodeDebugResponse = React.memo(function NodeDebugResponse({
         {/* result */}
         {debugResult.showResult && (
           <Card
+            className="nowheel"
             position={'absolute'}
             right={'-430px'}
             top={0}
             zIndex={10}
             w={'420px'}
+            maxH={'100%'}
+            minH={'300px'}
+            overflowY={'auto'}
             border={'base'}
           >
             {/* Status header */}

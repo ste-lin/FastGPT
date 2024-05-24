@@ -22,12 +22,13 @@ import { RuntimeEdgeItemType, StoreEdgeItemType } from './edge';
 import { NextApiResponse } from 'next';
 
 export type FlowNodeCommonType = {
-  flowNodeType: `${FlowNodeTypeEnum}`; // render node card
+  flowNodeType: FlowNodeTypeEnum; // render node card
 
   avatar?: string;
   name: string;
   intro?: string; // template list intro
   showStatus?: boolean; // chatting response step status
+  version: string;
 
   // data
   inputs: FlowNodeInputItemType[];
@@ -40,7 +41,7 @@ export type FlowNodeCommonType = {
 };
 
 export type FlowNodeTemplateType = FlowNodeCommonType & {
-  id: string; // module id, unique
+  id: string; // node id, unique
   templateType: `${FlowNodeTemplateTypeEnum}`;
 
   // show handle
@@ -63,6 +64,7 @@ export type FlowNodeTemplateType = FlowNodeCommonType & {
   // action
   forbidDelete?: boolean; // forbid delete
   unique?: boolean;
+  nodeVersion?: string;
 };
 export type FlowNodeItemType = FlowNodeTemplateType & {
   nodeId: string;
@@ -132,11 +134,12 @@ export type ChatDispatchProps = {
   chatId?: string;
   responseChatItemId?: string;
   histories: ChatItemType[];
-  variables: Record<string, any>;
-  inputFiles?: UserChatItemValueItemType['file'][];
+  variables: Record<string, any>; // global variable
+  query: UserChatItemValueItemType[]; // trigger query
   stream: boolean;
   detail: boolean; // response detail
   maxRunTimes: number;
+  isToolCall?: boolean;
 };
 
 export type ModuleDispatchProps<T> = ChatDispatchProps & {

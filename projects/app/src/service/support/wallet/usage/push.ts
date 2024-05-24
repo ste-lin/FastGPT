@@ -42,7 +42,6 @@ export const pushChatUsage = ({
   addLog.info(`finish completions`, {
     source,
     teamId,
-    tmbId,
     totalPoints
   });
   return { totalPoints };
@@ -67,7 +66,7 @@ export const pushQAUsage = async ({
     modelType: ModelTypeEnum.llm,
     tokens
   });
-  console.log(tokens, '----');
+
   concatUsage({
     billId,
     teamId,

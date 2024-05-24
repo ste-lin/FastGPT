@@ -1,55 +1,58 @@
-import { useAppStore } from '@/web/core/app/store/useAppStore';
 import { useUserStore } from '@/web/support/user/useUserStore';
 import { Box, Flex, IconButton } from '@chakra-ui/react';
 import { useTranslation } from 'next-i18next';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef } from 'react';
 import ChatBox from '@/components/ChatBox';
 import type { ComponentRef, StartChatFnProps } from '@/components/ChatBox/type.d';
-import { StoreNodeItemType } from '@fastgpt/global/core/workflow/type/index.d';
-import { NodeInputKeyEnum } from '@fastgpt/global/core/workflow/constants';
 import { streamFetch } from '@/web/common/api/fetch';
 import MyTooltip from '@/components/MyTooltip';
 import MyIcon from '@fastgpt/web/components/common/Icon';
 import { getGuideModule } from '@fastgpt/global/core/workflow/utils';
 import { checkChatSupportSelectFileByModules } from '@/web/core/chat/utils';
 import { AppTypeEnum } from '@fastgpt/global/core/app/constants';
-import { StoreEdgeItemType } from '@fastgpt/global/core/workflow/type/edge';
 import {
   getDefaultEntryNodeIds,
+  getMaxHistoryLimitFromNodes,
   initWorkflowEdgeStatus,
   storeNodes2RuntimeNodes
 } from '@fastgpt/global/core/workflow/runtime/utils';
+import { useMemoizedFn, useSafeState } from 'ahooks';
+import { UseFormReturn } from 'react-hook-form';
+import { AppSimpleEditFormType } from '@fastgpt/global/core/app/type';
+import { form2AppWorkflow } from '@/web/core/app/utils';
+import { useI18n } from '@/web/context/I18n';
+import { useContextSelector } from 'use-context-selector';
+import { AppContext } from '@/web/core/app/context/appContext';
 
-const ChatTest = ({ appId }: { appId: string }) => {
+const ChatTest = ({
+  editForm,
+  appId
+}: {
+  editForm: UseFormReturn<AppSimpleEditFormType, any>;
+  appId: string;
+}) => {
   const { t } = useTranslation();
+  const { appT } = useI18n();
+
   const { userInfo } = useUserStore();
-  const { appDetail } = useAppStore();
   const ChatBoxRef = useRef<ComponentRef>(null);
-  const [workflowData, setWorkflowData] = useState<{
-    nodes: StoreNodeItemType[];
-    edges: StoreEdgeItemType[];
-  }>({
-    nodes: [],
-    edges: []
+  const { appDetail } = useContextSelector(AppContext, (v) => v);
+
+  const { watch } = editForm;
+  const chatConfig = watch('chatConfig');
+
+  const [workflowData, setWorkflowData] = useSafeState({
+    nodes: appDetail.modules || [],
+    edges: appDetail.edges || []
   });
 
-  const startChat = useCallback(
+  const startChat = useMemoizedFn(
     async ({ chatList, controller, generatingMessage, variables }: StartChatFnProps) => {
       if (!workflowData) return Promise.reject('workflowData is empty');
 
       /* get histories */
-      let historyMaxLen = 6;
-      workflowData?.nodes.forEach((node) => {
-        node.inputs.forEach((input) => {
-          if (
-            (input.key === NodeInputKeyEnum.history ||
-              input.key === NodeInputKeyEnum.historyMaxAmount) &&
-            typeof input.value === 'number'
-          ) {
-            historyMaxLen = Math.max(historyMaxLen, input.value);
-          }
-        });
-      });
+      let historyMaxLen = getMaxHistoryLimitFromNodes(workflowData.nodes);
+
       const history = chatList.slice(-historyMaxLen - 2, -2);
 
       // 流请求，获取数据
@@ -72,8 +75,7 @@ const ChatTest = ({ appId }: { appId: string }) => {
       });
 
       return { responseText, responseData };
-    },
-    [workflowData, appId, appDetail.name]
+    }
   );
 
   const resetChatBox = useCallback(() => {
@@ -82,12 +84,15 @@ const ChatTest = ({ appId }: { appId: string }) => {
   }, []);
 
   useEffect(() => {
-    resetChatBox();
-    setWorkflowData({
-      nodes: appDetail.modules || [],
-      edges: appDetail.edges || []
+    const wat = watch((data) => {
+      const { nodes, edges } = form2AppWorkflow(data as AppSimpleEditFormType);
+      setWorkflowData({ nodes, edges });
     });
-  }, [appDetail, resetChatBox]);
+
+    return () => {
+      wat.unsubscribe();
+    };
+  }, [setWorkflowData, watch]);
 
   return (
     <Flex
@@ -100,7 +105,7 @@ const ChatTest = ({ appId }: { appId: string }) => {
     >
       <Flex px={[2, 5]}>
         <Box fontSize={['md', 'xl']} fontWeight={'bold'} flex={1}>
-          {t('app.Chat Debug')}
+          {appT('Chat Debug')}
         </Box>
         <MyTooltip label={t('core.chat.Restart')}>
           <IconButton
@@ -124,7 +129,7 @@ const ChatTest = ({ appId }: { appId: string }) => {
           appAvatar={appDetail.avatar}
           userAvatar={userInfo?.avatar}
           showMarkIcon
-          userGuideModule={getGuideModule(workflowData.nodes)}
+          chatConfig={chatConfig}
           showFileSelector={checkChatSupportSelectFileByModules(workflowData.nodes)}
           onStartChat={startChat}
           onDelMessage={() => {}}
@@ -146,7 +151,7 @@ const ChatTest = ({ appId }: { appId: string }) => {
           whiteSpace={'pre-wrap'}
           textAlign={'center'}
         >
-          <Box>{t('app.Advance App TestTip')}</Box>
+          <Box>{appT('Advance App TestTip')}</Box>
         </Flex>
       )}
     </Flex>

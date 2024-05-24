@@ -13,7 +13,6 @@ import {
   Switch,
   Input,
   FormControl,
-  Image,
   Table,
   Thead,
   Tbody,
@@ -21,7 +20,6 @@ import {
   Th,
   Td,
   TableContainer,
-  BoxProps,
   useDisclosure
 } from '@chakra-ui/react';
 import { QuestionOutlineIcon, SmallAddIcon } from '@chakra-ui/icons';
@@ -34,17 +32,17 @@ import { customAlphabet } from 'nanoid';
 const nanoid = customAlphabet('abcdefghijklmnopqrstuvwxyz1234567890', 6);
 import MyModal from '@fastgpt/web/components/common/MyModal';
 import MyTooltip from '@/components/MyTooltip';
-import { variableTip } from '@fastgpt/global/core/workflow/template/tip';
 import { useTranslation } from 'next-i18next';
 import { useToast } from '@fastgpt/web/hooks/useToast';
 import MyRadio from '@/components/common/MyRadio';
 import { formatEditorVariablePickerIcon } from '@fastgpt/global/core/workflow/utils';
+import ChatFunctionTip from './Tip';
 
 const VariableEdit = ({
-  variables,
+  variables = [],
   onChange
 }: {
-  variables: VariableItemType[];
+  variables?: VariableItemType[];
   onChange: (data: VariableItemType[]) => void;
 }) => {
   const { t } = useTranslation();
@@ -98,12 +96,11 @@ const VariableEdit = ({
     <Box>
       <Flex alignItems={'center'}>
         <MyIcon name={'core/app/simpleMode/variable'} w={'20px'} />
-        <Box ml={2} flex={1} fontWeight={'medium'}>
+        <Box ml={2} fontWeight={'medium'}>
           {t('core.module.Variable')}
-          <MyTooltip label={t(variableTip)} forceShow>
-            <QuestionOutlineIcon display={['none', 'inline']} ml={1} />
-          </MyTooltip>
         </Box>
+        <ChatFunctionTip type={'variable'} />
+        <Box flex={1} />
         <Button
           variant={'transparentBase'}
           leftIcon={<SmallAddIcon />}
@@ -175,7 +172,7 @@ const VariableEdit = ({
         maxW={['90vw', '500px']}
       >
         <ModalBody>
-          {variableType !== VariableInputEnum.external && (
+          {variableType !== VariableInputEnum.custom && (
             <Flex alignItems={'center'}>
               <Box w={'70px'}>{t('common.Require Input')}</Box>
               <Switch {...registerEdit('variable.required')} />
@@ -199,7 +196,7 @@ const VariableEdit = ({
           </Flex>
 
           <Box mt={5} mb={2}>
-            {t('core.module.Field Type')}
+            {t('core.workflow.Variable.Variable type')}
           </Box>
           <MyRadio
             gridGap={4}

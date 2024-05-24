@@ -14,18 +14,21 @@ export enum WorkflowIOValueTypeEnum {
   string = 'string',
   number = 'number',
   boolean = 'boolean',
+  object = 'object',
+  arrayString = 'arrayString',
+  arrayNumber = 'arrayNumber',
+  arrayBoolean = 'arrayBoolean',
+  arrayObject = 'arrayObject',
   any = 'any',
 
   chatHistory = 'chatHistory',
   datasetQuote = 'datasetQuote',
+
   dynamic = 'dynamic',
 
   // plugin special type
   selectApp = 'selectApp',
-  selectDataset = 'selectDataset',
-
-  // tool
-  tools = 'tools'
+  selectDataset = 'selectDataset'
 }
 
 /* reg: modulename key */
@@ -34,7 +37,6 @@ export enum NodeInputKeyEnum {
   welcomeText = 'welcomeText',
   switch = 'switch', // a trigger switch
   history = 'history',
-  userChatInput = 'userChatInput',
   answerText = 'text',
 
   // system config
@@ -43,6 +45,11 @@ export enum NodeInputKeyEnum {
   whisper = 'whisper',
   variables = 'variables',
   scheduleTrigger = 'scheduleTrigger',
+  chatInputGuide = 'chatInputGuide',
+
+  // entry
+  userChatInput = 'userChatInput',
+  inputFiles = 'inputFiles',
 
   agents = 'agents', // cq agent key
 
@@ -98,7 +105,10 @@ export enum NodeInputKeyEnum {
 
   // if else
   condition = 'condition',
-  ifElseList = 'ifElseList'
+  ifElseList = 'ifElseList',
+
+  // variable update
+  updateList = 'updateList'
 }
 
 export enum NodeOutputKeyEnum {
@@ -108,6 +118,7 @@ export enum NodeOutputKeyEnum {
   answerText = 'answerText', // module answer. the value will be show and save to history
   success = 'success',
   failed = 'failed',
+  error = 'error',
   text = 'system_text',
   addOutputParam = 'system_addOutputParam',
 
@@ -132,15 +143,14 @@ export enum NodeOutputKeyEnum {
   // plugin
   pluginStart = 'pluginStart',
 
-  if = 'IF',
-  else = 'ELSE'
+  ifElseResult = 'ifElseResult'
 }
 
 export enum VariableInputEnum {
   input = 'input',
   textarea = 'textarea',
   select = 'select',
-  external = 'external'
+  custom = 'custom'
 }
 export const variableMap = {
   [VariableInputEnum.input]: {
@@ -158,10 +168,10 @@ export const variableMap = {
     title: 'core.module.variable.select type',
     desc: ''
   },
-  [VariableInputEnum.external]: {
+  [VariableInputEnum.custom]: {
     icon: 'core/app/variable/external',
-    title: 'core.module.variable.External type',
-    desc: '可以通过API接口或分享链接的Query传递变量。增加该类型变量的主要目的是用于变量提示。使用例子: 你可以通过分享链接Query中拼接Token，来实现内部系统身份鉴权。'
+    title: 'core.module.variable.Custom type',
+    desc: '可以定义一个无需用户填写的全局变量。\n该变量的值可以来自于 API 接口，分享链接的 Query 或通过【变量更新】模块进行赋值。'
   }
 };
 
@@ -173,3 +183,5 @@ export enum RuntimeEdgeStatusEnum {
   'active' = 'active',
   'skipped' = 'skipped'
 }
+
+export const VARIABLE_NODE_ID = 'VARIABLE_NODE_ID';

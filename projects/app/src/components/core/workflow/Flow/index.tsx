@@ -21,7 +21,6 @@ import dynamic from 'next/dynamic';
 
 import ButtonEdge from './components/ButtonEdge';
 import NodeTemplatesModal from './NodeTemplatesModal';
-import { useFlowProviderStore } from './FlowProvider';
 
 import 'reactflow/dist/style.css';
 import { useToast } from '@fastgpt/web/hooks/useToast';
@@ -32,9 +31,11 @@ import MyTooltip from '@/components/MyTooltip';
 import { connectionLineStyle, defaultEdgeOptions } from '../constants';
 import { useConfirm } from '@fastgpt/web/hooks/useConfirm';
 import { useKeyboard } from './hooks/useKeyboard';
+import { useContextSelector } from 'use-context-selector';
+import { WorkflowContext } from '../context';
 
 const NodeSimple = dynamic(() => import('./nodes/NodeSimple'));
-const nodeTypes: Record<`${FlowNodeTypeEnum}`, any> = {
+const nodeTypes: Record<FlowNodeTypeEnum, any> = {
   [FlowNodeTypeEnum.emptyNode]: NodeSimple,
   [FlowNodeTypeEnum.globalVariable]: NodeSimple,
   [FlowNodeTypeEnum.systemConfig]: dynamic(() => import('./nodes/NodeSystemConfig')),
@@ -56,7 +57,8 @@ const nodeTypes: Record<`${FlowNodeTypeEnum}`, any> = {
     <NodeSimple {...data} minW={'100px'} maxW={'300px'} />
   ),
   [FlowNodeTypeEnum.lafModule]: dynamic(() => import('./nodes/NodeLaf')),
-  [FlowNodeTypeEnum.ifElseNode]: dynamic(() => import('./nodes/NodeIfElse'))
+  [FlowNodeTypeEnum.ifElseNode]: dynamic(() => import('./nodes/NodeIfElse')),
+  [FlowNodeTypeEnum.variableUpdate]: dynamic(() => import('./nodes/NodeVariableUpdate'))
 };
 const edgeTypes = {
   [EDGE_TYPE]: ButtonEdge
@@ -71,16 +73,13 @@ const Container = React.memo(function Container() {
   });
 
   const { isDowningCtrl } = useKeyboard();
-
-  const {
-    reactFlowWrapper,
-    nodes,
-    onNodesChange,
-    edges,
-    setEdges,
-    onEdgesChange,
-    setConnectingEdge
-  } = useFlowProviderStore();
+  const setConnectingEdge = useContextSelector(WorkflowContext, (v) => v.setConnectingEdge);
+  const reactFlowWrapper = useContextSelector(WorkflowContext, (v) => v.reactFlowWrapper);
+  const nodes = useContextSelector(WorkflowContext, (v) => v.nodes);
+  const onNodesChange = useContextSelector(WorkflowContext, (v) => v.onNodesChange);
+  const edges = useContextSelector(WorkflowContext, (v) => v.edges);
+  const setEdges = useContextSelector(WorkflowContext, (v) => v.setEdges);
+  const onEdgesChange = useContextSelector(WorkflowContext, (v) => v.onEdgesChange);
 
   /* node */
   const handleNodesChange = useCallback(

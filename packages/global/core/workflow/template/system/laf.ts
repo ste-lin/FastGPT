@@ -14,7 +14,7 @@ import { Input_Template_DynamicInput } from '../input';
 import { Output_Template_AddOutput } from '../output';
 import { getHandleConfig } from '../utils';
 
-export const lafModule: FlowNodeTemplateType = {
+export const LafModule: FlowNodeTemplateType = {
   id: FlowNodeTypeEnum.lafModule,
   templateType: FlowNodeTemplateTypeEnum.externalCall,
   flowNodeType: FlowNodeTypeEnum.lafModule,
@@ -25,6 +25,7 @@ export const lafModule: FlowNodeTemplateType = {
   intro: '可以调用Laf账号下的云函数。',
   showStatus: true,
   isTool: true,
+  version: '481',
   inputs: [
     {
       ...Input_Template_DynamicInput,
