@@ -250,12 +250,6 @@ const MyInfo = () => {
             </Button>
           </Flex>
         )}
-        <Flex mt={6} alignItems={'center'}>
-          <Box flex={'0 0 80px'}>{t('user.Team')}:&nbsp;</Box>
-          <Box flex={1}>
-            <TeamMenu />
-          </Box>
-        </Flex>
         {feConfigs.isPlus && (
           <Box mt={6} whiteSpace={'nowrap'}>
             <Flex alignItems={'center'}>
@@ -542,114 +536,6 @@ const Other = () => {
   );
   return (
     <Box>
-      <Grid gridGap={4} mt={3}>
-        {feConfigs?.docUrl && (
-          <Link
-            bg={'white'}
-            href={getDocPath('/docs/intro')}
-            target="_blank"
-            display={'flex'}
-            py={3}
-            px={6}
-            border={theme.borders.sm}
-            borderWidth={'1.5px'}
-            borderRadius={'md'}
-            alignItems={'center'}
-            userSelect={'none'}
-            textDecoration={'none !important'}
-          >
-            <MyIcon name={'common/courseLight'} w={'18px'} color={'myGray.600'} />
-            <Box ml={2} flex={1}>
-              {t('system.Help Document')}
-            </Box>
-          </Link>
-        )}
-        {feConfigs?.chatbotUrl && (
-          <Link
-            href={feConfigs.chatbotUrl}
-            target="_blank"
-            display={'flex'}
-            py={3}
-            px={6}
-            bg={'white'}
-            border={theme.borders.sm}
-            borderWidth={'1.5px'}
-            borderRadius={'md'}
-            alignItems={'center'}
-            userSelect={'none'}
-            textDecoration={'none !important'}
-          >
-            <MyIcon name={'core/app/aiLight'} w={'18px'} />
-            <Box ml={2} flex={1}>
-              {t('common.system.Help Chatbot')}
-            </Box>
-          </Link>
-        )}
-
-        {feConfigs?.lafEnv && userInfo?.team.role === TeamMemberRoleEnum.owner && (
-          <Flex
-            bg={'white'}
-            py={4}
-            px={6}
-            border={theme.borders.sm}
-            borderWidth={'1.5px'}
-            borderRadius={'md'}
-            alignItems={'center'}
-            cursor={'pointer'}
-            userSelect={'none'}
-            onClick={onOpenLaf}
-          >
-            <Image src="/imgs/workflow/laf.png" w={'18px'} alt="laf" />
-            <Box ml={2} flex={1}>
-              laf 账号
-            </Box>
-            <Box
-              w={'9px'}
-              h={'9px'}
-              borderRadius={'50%'}
-              bg={userInfo?.team.lafAccount?.token ? '#67c13b' : 'myGray.500'}
-            />
-          </Flex>
-        )}
-
-        {feConfigs?.show_openai_account && (
-          <Flex
-            bg={'white'}
-            py={4}
-            px={6}
-            border={theme.borders.sm}
-            borderWidth={'1.5px'}
-            borderRadius={'md'}
-            alignItems={'center'}
-            cursor={'pointer'}
-            userSelect={'none'}
-            onClick={onOpenOpenai}
-          >
-            <MyIcon name={'common/openai'} w={'18px'} color={'myGray.600'} />
-            <Box ml={2} flex={1}>
-              OpenAI/OneAPI 账号
-            </Box>
-            <Box
-              w={'9px'}
-              h={'9px'}
-              borderRadius={'50%'}
-              bg={userInfo?.openaiAccount?.key ? '#67c13b' : 'myGray.500'}
-            />
-          </Flex>
-        )}
-        {feConfigs?.concatMd && (
-          <Button
-            variant={'whiteBase'}
-            justifyContent={'flex-start'}
-            leftIcon={<MyIcon name={'modal/concat'} w={'18px'} color={'myGray.600'} />}
-            onClick={onOpenConcat}
-            h={'48px'}
-          >
-            联系我们
-          </Button>
-        )}
-      </Grid>
-
       {isOpenLaf && userInfo && (
         <LafAccountModal defaultData={userInfo?.team.lafAccount} onClose={onCloseLaf} />
       )}

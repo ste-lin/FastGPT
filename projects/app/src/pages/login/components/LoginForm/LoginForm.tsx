@@ -106,27 +106,6 @@ const LoginForm = ({ setPageType, loginSuccess }: Props) => {
             })}
           ></Input>
         </FormControl>
-        {feConfigs?.docUrl && (
-          <Flex alignItems={'center'} mt={7} fontSize={'sm'}>
-            {t('support.user.login.Policy tip')}
-            <Link
-              ml={1}
-              href={getDocPath('/docs/agreement/terms/')}
-              target={'_blank'}
-              color={'primary.500'}
-            >
-              {t('support.user.login.Terms')}
-            </Link>
-            <Box mx={1}>{t('support.user.login.And')}</Box>
-            <Link
-              href={getDocPath('/docs/agreement/privacy/')}
-              target={'_blank'}
-              color={'primary.500'}
-            >
-              {t('support.user.login.Privacy')}
-            </Link>
-          </Flex>
-        )}
 
         <Button
           type="submit"

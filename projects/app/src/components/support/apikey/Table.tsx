@@ -92,16 +92,6 @@ const ApiKeyTable = ({ tips, appId }: { tips: string; appId?: string }) => {
             <Box fontSize={['md', 'xl']} fontWeight={'bold'}>
               {t('support.openapi.Api manager')}
             </Box>
-            {feConfigs?.docUrl && (
-              <Link
-                href={feConfigs.openAPIDocUrl || getDocPath('/docs/development/openapi')}
-                target={'_blank'}
-                ml={1}
-                color={'primary.500'}
-              >
-                {t('common.Read document')}
-              </Link>
-            )}
           </Flex>
           <Box fontSize={'sm'} color={'myGray.600'}>
             {tips}
