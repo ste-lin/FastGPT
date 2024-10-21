@@ -57,9 +57,10 @@ export const useDebug = () => {
   const appDetail = useContextSelector(AppContext, (v) => v.appDetail);
 
   const filteredVar = useMemo(() => {
-    const variables = appDetail.chatConfig.variables;
+    // 确保 appDetail.chatConfig 和 variables 都已定义
+    const variables = appDetail?.chatConfig?.variables;
     return variables?.filter((item) => item.type !== VariableInputEnum.custom) || [];
-  }, [appDetail.chatConfig.variables]);
+  }, [appDetail?.chatConfig?.variables]);
 
   const [defaultGlobalVariables, setDefaultGlobalVariables] = useState<Record<string, any>>(
     filteredVar.reduce(
