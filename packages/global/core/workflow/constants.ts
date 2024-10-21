@@ -1,13 +1,18 @@
+import { i18nT } from '../../../web/i18n/utils';
+
 export enum FlowNodeTemplateTypeEnum {
   systemInput = 'systemInput',
+  ai = 'ai',
+  function = 'function',
   tools = 'tools',
-  textAnswer = 'textAnswer',
-  functionCall = 'functionCall',
-  externalCall = 'externalCall',
+  interactive = 'interactive',
 
-  personalPlugin = 'personalPlugin',
+  search = 'search',
+  multimodal = 'multimodal',
+  communication = 'communication',
 
-  other = 'other'
+  other = 'other',
+  teamApp = 'teamApp'
 }
 
 export enum WorkflowIOValueTypeEnum {
@@ -19,6 +24,7 @@ export enum WorkflowIOValueTypeEnum {
   arrayNumber = 'arrayNumber',
   arrayBoolean = 'arrayBoolean',
   arrayObject = 'arrayObject',
+  arrayAny = 'arrayAny',
   any = 'any',
 
   chatHistory = 'chatHistory',
@@ -30,6 +36,60 @@ export enum WorkflowIOValueTypeEnum {
   selectApp = 'selectApp',
   selectDataset = 'selectDataset'
 }
+
+export const toolValueTypeList = [
+  {
+    label: WorkflowIOValueTypeEnum.string,
+    value: WorkflowIOValueTypeEnum.string,
+    jsonSchema: {
+      type: 'string'
+    }
+  },
+  {
+    label: WorkflowIOValueTypeEnum.number,
+    value: WorkflowIOValueTypeEnum.number,
+    jsonSchema: {
+      type: 'number'
+    }
+  },
+  {
+    label: WorkflowIOValueTypeEnum.boolean,
+    value: WorkflowIOValueTypeEnum.boolean,
+    jsonSchema: {
+      type: 'boolean'
+    }
+  },
+  {
+    label: 'array<string>',
+    value: WorkflowIOValueTypeEnum.arrayString,
+    jsonSchema: {
+      type: 'array',
+      items: {
+        type: 'string'
+      }
+    }
+  },
+  {
+    label: 'array<number>',
+    value: WorkflowIOValueTypeEnum.arrayNumber,
+    jsonSchema: {
+      type: 'array',
+      items: {
+        type: 'number'
+      }
+    }
+  },
+  {
+    label: 'array<boolean>',
+    value: WorkflowIOValueTypeEnum.arrayBoolean,
+    jsonSchema: {
+      type: 'array',
+      items: {
+        type: 'boolean'
+      }
+    }
+  }
+];
 
 /* reg: modulename key */
 export enum NodeInputKeyEnum {
@@ -47,6 +107,9 @@ export enum NodeInputKeyEnum {
   scheduleTrigger = 'scheduleTrigger',
   chatInputGuide = 'chatInputGuide',
 
+  // plugin config
+  instruction = 'instruction',
+
   // entry
   userChatInput = 'userChatInput',
   inputFiles = 'inputFiles',
@@ -61,6 +124,7 @@ export enum NodeInputKeyEnum {
   anyInput = 'system_anyInput',
   textareaInput = 'system_textareaInput',
   addInputParam = 'system_addInputParam',
+  forbidStream = 'system_forbid_stream',
 
   // history
   historyMaxAmount = 'maxContext',
@@ -70,9 +134,12 @@ export enum NodeInputKeyEnum {
   aiChatMaxToken = 'maxToken',
   aiChatSettingModal = 'aiSettings',
   aiChatIsResponseText = 'isResponseAnswerText',
+  aiChatQuoteRole = 'aiChatQuoteRole',
   aiChatQuoteTemplate = 'quoteTemplate',
   aiChatQuotePrompt = 'quotePrompt',
   aiChatDatasetQuote = 'quoteQA',
+  aiChatVision = 'aiChatVision',
+  stringQuoteText = 'stringQuoteText',
 
   // dataset
   datasetSelectList = 'datasets',
@@ -83,6 +150,10 @@ export enum NodeInputKeyEnum {
   datasetSearchUsingExtensionQuery = 'datasetSearchUsingExtensionQuery',
   datasetSearchExtensionModel = 'datasetSearchExtensionModel',
   datasetSearchExtensionBg = 'datasetSearchExtensionBg',
+  collectionFilterMatch = 'collectionFilterMatch',
+
+  // concat dataset
+  datasetQuoteList = 'system_datasetQuoteList',
 
   // context extract
   contextExtractInput = 'content',
@@ -94,6 +165,9 @@ export enum NodeInputKeyEnum {
   httpMethod = 'system_httpMethod',
   httpParams = 'system_httpParams',
   httpJsonBody = 'system_httpJsonBody',
+  httpFormBody = 'system_httpFormBody',
+  httpContentType = 'system_httpContentType',
+  httpTimeout = 'system_httpTimeout',
   abandon_httpUrl = 'url',
 
   // app
@@ -108,7 +182,34 @@ export enum NodeInputKeyEnum {
   ifElseList = 'ifElseList',
 
   // variable update
-  updateList = 'updateList'
+  updateList = 'updateList',
+
+  // code
+  code = 'code',
+  codeType = 'codeType', // js|py
+
+  // read files
+  fileUrlList = 'fileUrlList',
+
+  // user select
+  userSelectOptions = 'userSelectOptions',
+
+  // loop
+  loopInputArray = 'loopInputArray',
+  childrenNodeIdList = 'childrenNodeIdList',
+  nodeWidth = 'nodeWidth',
+  nodeHeight = 'nodeHeight',
+  // loop start
+  loopStartInput = 'loopStartInput',
+  // loop end
+  loopEndInput = 'loopEndInput',
+
+  // form input
+  userInputForms = 'userInputForms',
+
+  // comment
+  commentText = 'commentText',
+  commentSize = 'commentSize'
 }
 
 export enum NodeOutputKeyEnum {
@@ -121,6 +222,10 @@ export enum NodeOutputKeyEnum {
   error = 'error',
   text = 'system_text',
   addOutputParam = 'system_addOutputParam',
+  rawResponse = 'system_rawResponse',
+
+  // start
+  userFiles = 'userFiles',
 
   // dataset
   datasetQuoteQA = 'quoteQA',
@@ -143,39 +248,72 @@ export enum NodeOutputKeyEnum {
   // plugin
   pluginStart = 'pluginStart',
 
-  ifElseResult = 'ifElseResult'
+  // if else
+  ifElseResult = 'ifElseResult',
+
+  //user select
+  selectResult = 'selectResult',
+
+  // loop
+  loopArray = 'loopArray',
+
+  // loop start
+  loopStartInput = 'loopStartInput',
+
+  // form input
+  formInputResult = 'formInputResult'
 }
 
 export enum VariableInputEnum {
   input = 'input',
   textarea = 'textarea',
+  numberInput = 'numberInput',
   select = 'select',
   custom = 'custom'
 }
-export const variableMap = {
+export const variableMap: Record<
+  VariableInputEnum,
+  {
+    icon: string;
+    label: string;
+    value: VariableInputEnum;
+    defaultValueType: WorkflowIOValueTypeEnum;
+    description?: string;
+  }
+> = {
   [VariableInputEnum.input]: {
-    icon: 'core/app/variable/input',
-    title: 'core.module.variable.input type',
-    desc: ''
+    icon: 'core/workflow/inputType/input',
+    label: i18nT('common:core.workflow.inputType.input'),
+    value: VariableInputEnum.input,
+    defaultValueType: WorkflowIOValueTypeEnum.string
   },
   [VariableInputEnum.textarea]: {
-    icon: 'core/app/variable/textarea',
-    title: 'core.module.variable.textarea type',
-    desc: '允许用户最多输入4000字的对话框。'
+    icon: 'core/workflow/inputType/textarea',
+    label: i18nT('common:core.workflow.inputType.textarea'),
+    value: VariableInputEnum.textarea,
+    defaultValueType: WorkflowIOValueTypeEnum.string,
+    description: i18nT('app:variable.textarea_type_desc')
+  },
+  [VariableInputEnum.numberInput]: {
+    icon: 'core/workflow/inputType/numberInput',
+    label: i18nT('common:core.workflow.inputType.number input'),
+    value: VariableInputEnum.numberInput,
+    defaultValueType: WorkflowIOValueTypeEnum.number
   },
   [VariableInputEnum.select]: {
-    icon: 'core/app/variable/select',
-    title: 'core.module.variable.select type',
-    desc: ''
+    icon: 'core/workflow/inputType/option',
+    label: i18nT('common:core.workflow.inputType.select'),
+    value: VariableInputEnum.select,
+    defaultValueType: WorkflowIOValueTypeEnum.string
   },
   [VariableInputEnum.custom]: {
-    icon: 'core/app/variable/external',
-    title: 'core.module.variable.Custom type',
-    desc: '可以定义一个无需用户填写的全局变量。\n该变量的值可以来自于 API 接口，分享链接的 Query 或通过【变量更新】模块进行赋值。'
+    icon: 'core/workflow/inputType/customVariable',
+    label: i18nT('common:core.workflow.inputType.custom'),
+    value: VariableInputEnum.custom,
+    defaultValueType: WorkflowIOValueTypeEnum.string,
+    description: i18nT('app:variable.select type_desc')
   }
 };
-
-export const DYNAMIC_INPUT_REFERENCE_KEY = 'DYNAMIC_INPUT_REFERENCE_KEY';
 
 /* run time */
 export enum RuntimeEdgeStatusEnum {
@@ -185,3 +323,14 @@ export enum RuntimeEdgeStatusEnum {
 }
 
 export const VARIABLE_NODE_ID = 'VARIABLE_NODE_ID';
+export const DYNAMIC_INPUT_REFERENCE_KEY = 'DYNAMIC_INPUT_REFERENCE_KEY';
+
+// http node body content type
+export enum ContentTypes {
+  none = 'none',
+  formData = 'form-data',
+  xWwwFormUrlencoded = 'x-www-form-urlencoded',
+  json = 'json',
+  xml = 'xml',
+  raw = 'raw-text'
+}

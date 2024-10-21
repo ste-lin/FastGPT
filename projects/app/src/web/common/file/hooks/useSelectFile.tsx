@@ -26,17 +26,20 @@ export const useSelectFile = (props?: {
           multiple={multiple}
           onChange={(e) => {
             const files = e.target.files;
+
             if (!files || files?.length === 0) return;
 
             let fileList = Array.from(files);
             if (fileList.length > maxCount) {
               toast({
                 status: 'warning',
-                title: fileT('Select file amount limit', { max: maxCount })
+                title: fileT('select_file_amount_limit', { max: maxCount })
               });
               fileList = fileList.slice(0, maxCount);
             }
             onSelect(fileList, openSign.current);
+
+            e.target.value = '';
           }}
         />
       </Box>

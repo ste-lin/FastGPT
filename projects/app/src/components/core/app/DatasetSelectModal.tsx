@@ -10,10 +10,10 @@ import {
   Grid,
   Divider
 } from '@chakra-ui/react';
-import Avatar from '@/components/Avatar';
+import Avatar from '@fastgpt/web/components/common/Avatar';
 import type { SelectedDatasetType } from '@fastgpt/global/core/workflow/api.d';
 import { useToast } from '@fastgpt/web/hooks/useToast';
-import MyTooltip from '@/components/MyTooltip';
+import MyTooltip from '@fastgpt/web/components/common/MyTooltip';
 import MyIcon from '@fastgpt/web/components/common/Icon';
 import { DatasetTypeEnum } from '@fastgpt/global/core/dataset/constants';
 import { useTranslation } from 'next-i18next';
@@ -61,7 +61,7 @@ export const DatasetSelectModal = ({
       isOpen={isOpen}
       paths={paths}
       setParentId={setParentId}
-      tips={t('dataset.Select Dataset Tips')}
+      tips={t('common:dataset.Select Dataset Tips')}
       onClose={onClose}
     >
       <Flex h={'100%'} flexDirection={'column'} flex={'1 0 0'}>
@@ -85,7 +85,7 @@ export const DatasetSelectModal = ({
                     bg={'primary.200'}
                   >
                     <Flex alignItems={'center'} h={'38px'}>
-                      <Avatar src={item.avatar} w={['24px', '28px']}></Avatar>
+                      <Avatar src={item.avatar} w={['1.25rem', '1.75rem']}></Avatar>
                       <Box flex={'1 0 0'} w={0} className="textEllipsis" mx={3}>
                         {item.name}
                       </Box>
@@ -124,8 +124,8 @@ export const DatasetSelectModal = ({
                     key={item._id}
                     label={
                       item.type === DatasetTypeEnum.folder
-                        ? t('dataset.Select Folder')
-                        : t('dataset.Select Dataset')
+                        ? t('common:dataset.Select Folder')
+                        : t('common:dataset.Select Dataset')
                     }
                   >
                     <Card
@@ -148,7 +148,7 @@ export const DatasetSelectModal = ({
                           if (vectorModel && vectorModel !== item.vectorModel.model) {
                             return toast({
                               status: 'warning',
-                              title: t('dataset.Select Dataset Tips')
+                              title: t('common:dataset.Select Dataset Tips')
                             });
                           }
                           setSelectedDatasets((state) => [...state, { datasetId: item._id }]);
@@ -162,15 +162,15 @@ export const DatasetSelectModal = ({
                           w={0}
                           className="textEllipsis"
                           ml={3}
-                          fontWeight={'bold'}
-                          fontSize={['md', 'lg', 'xl']}
+                          fontSize={'md'}
+                          color={'myGray.900'}
                         >
                           {item.name}
                         </Box>
                       </Flex>
                       <Flex justifyContent={'flex-end'} alignItems={'center'} fontSize={'sm'}>
                         {item.type === DatasetTypeEnum.folder ? (
-                          <Box color={'myGray.500'}>{t('Folder')}</Box>
+                          <Box color={'myGray.500'}>{t('common:Folder')}</Box>
                         ) : (
                           <>
                             <MyIcon mr={1} name="kbTest" w={'12px'} />
@@ -184,7 +184,9 @@ export const DatasetSelectModal = ({
               })()
             )}
           </Grid>
-          {filterDatasets.unSelected.length === 0 && <EmptyTip text={t('common.folder.empty')} />}
+          {filterDatasets.unSelected.length === 0 && (
+            <EmptyTip text={t('common:common.folder.empty')} />
+          )}
         </ModalBody>
 
         <ModalFooter>
@@ -199,7 +201,7 @@ export const DatasetSelectModal = ({
               onChange(filterDatasets);
             }}
           >
-            {t('common.Done')}
+            {t('common:common.Done')}
           </Button>
         </ModalFooter>
 

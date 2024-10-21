@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Button,
@@ -12,9 +12,7 @@ import {
   useTheme
 } from '@chakra-ui/react';
 import { useForm } from 'react-hook-form';
-import { QuestionOutlineIcon } from '@chakra-ui/icons';
 import MySlider from '@/components/Slider';
-import MyTooltip from '@/components/MyTooltip';
 import MyModal from '@fastgpt/web/components/common/MyModal';
 import { DatasetSearchModeEnum } from '@fastgpt/global/core/dataset/constants';
 import { useTranslation } from 'next-i18next';
@@ -24,11 +22,13 @@ import { NodeInputKeyEnum } from '@fastgpt/global/core/workflow/constants';
 import { DatasetSearchModeMap } from '@fastgpt/global/core/dataset/constants';
 import MyRadio from '@/components/common/MyRadio';
 import MyIcon from '@fastgpt/web/components/common/Icon';
-import Tabs from '@/components/Tabs';
+import LightRowTabs from '@fastgpt/web/components/common/Tabs/LightRowTabs';
 import PromptEditor from '@fastgpt/web/components/common/Textarea/PromptEditor';
 import { useUserStore } from '@/web/support/user/useUserStore';
 import { useToast } from '@fastgpt/web/hooks/useToast';
 import SelectAiModel from '@/components/Select/AIModelSelector';
+import QuestionTip from '@fastgpt/web/components/common/MyTooltip/QuestionTip';
+import FormLabel from '@fastgpt/web/components/common/MyBox/FormLabel';
 
 export type DatasetParamsProps = {
   searchMode: `${DatasetSearchModeEnum}`;
@@ -67,6 +67,14 @@ const DatasetParamsModal = ({
   const [refresh, setRefresh] = useState(false);
   const [currentTabType, setCurrentTabType] = useState(SearchSettingTabEnum.searchMode);
 
+  const chatModelSelectList = (() =>
+    llmModelList
+      .filter((model) => model.usedInQueryExtension)
+      .map((item) => ({
+        value: item.model,
+        label: item.name
+      })))();
+
   const { register, setValue, getValues, handleSubmit, watch } = useForm<DatasetParamsProps>({
     defaultValues: {
       limit,
@@ -74,7 +82,7 @@ const DatasetParamsModal = ({
       searchMode,
       usingReRank: !!usingReRank && teamPlanStatus?.standardConstants?.permissionReRank !== false,
       datasetSearchUsingExtensionQuery,
-      datasetSearchExtensionModel: datasetSearchExtensionModel ?? llmModelList[0]?.model,
+      datasetSearchExtensionModel: datasetSearchExtensionModel || chatModelSelectList[0]?.value,
       datasetSearchExtensionBg
     }
   });
@@ -83,14 +91,6 @@ const DatasetParamsModal = ({
   const cfbBgDesc = watch('datasetSearchExtensionBg');
   const usingReRankWatch = watch('usingReRank');
   const searchModeWatch = watch('searchMode');
-
-  const chatModelSelectList = (() =>
-    llmModelList
-      .filter((model) => model.usedInQueryExtension)
-      .map((item) => ({
-        value: item.model,
-        label: item.name
-      })))();
 
   const searchModeList = useMemo(() => {
     const list = Object.values(DatasetSearchModeMap);
@@ -108,36 +108,46 @@ const DatasetParamsModal = ({
     return usingReRank !== undefined && reRankModelList.length > 0;
   }, [reRankModelList.length, usingReRank]);
 
+  useEffect(() => {
+    if (datasetSearchUsingCfrForm) {
+      !queryExtensionModel &&
+        setValue('datasetSearchExtensionModel', chatModelSelectList[0]?.value);
+    } else {
+      setValue('datasetSearchExtensionModel', '');
+    }
+  }, [chatModelSelectList, datasetSearchUsingCfrForm, queryExtensionModel, setValue]);
+
   return (
     <MyModal
       isOpen={true}
       onClose={onClose}
       iconSrc="/imgs/modal/params.svg"
-      title={t('core.dataset.search.Dataset Search Params')}
+      title={t('common:core.dataset.search.Dataset Search Params')}
       w={['90vw', '550px']}
     >
       <ModalBody flex={'auto'} overflow={'auto'}>
-        <Tabs
+        <LightRowTabs<SearchSettingTabEnum>
+          width={'100%'}
           mb={3}
           list={[
             {
               icon: 'modal/setting',
-              label: t('core.dataset.search.search mode'),
-              id: SearchSettingTabEnum.searchMode
+              label: t('common:core.dataset.search.search mode'),
+              value: SearchSettingTabEnum.searchMode
             },
             {
               icon: 'support/outlink/apikeyFill',
-              label: t('core.dataset.search.Filter'),
-              id: SearchSettingTabEnum.limit
+              label: t('common:core.dataset.search.Filter'),
+              value: SearchSettingTabEnum.limit
             },
             {
-              label: t('core.module.template.Query extension'),
-              id: SearchSettingTabEnum.queryExtension,
+              label: t('common:core.module.template.Query extension'),
+              value: SearchSettingTabEnum.queryExtension,
               icon: '/imgs/workflow/cfr.svg'
             }
           ]}
-          activeId={currentTabType}
-          onChange={(e) => setCurrentTabType(e as any)}
+          value={currentTabType}
+          onChange={setCurrentTabType}
         />
         {currentTabType === SearchSettingTabEnum.searchMode && (
           <>
@@ -158,8 +168,7 @@ const DatasetParamsModal = ({
                 cursor={'pointer'}
                 userSelect={'none'}
                 py={3}
-                pl={'14px'}
-                pr={'16px'}
+                px={4}
                 border={theme.borders.sm}
                 borderWidth={'1.5px'}
                 borderRadius={'md'}
@@ -173,7 +182,7 @@ const DatasetParamsModal = ({
                   if (!showReRank) {
                     return toast({
                       status: 'warning',
-                      title: t('core.ai.Not deploy rerank model')
+                      title: t('common:core.ai.Not deploy rerank model')
                     });
                   }
                   if (
@@ -182,7 +191,7 @@ const DatasetParamsModal = ({
                   ) {
                     return toast({
                       status: 'warning',
-                      title: t('support.team.limit.No permission rerank')
+                      title: t('common:support.team.limit.No permission rerank')
                     });
                   }
                   setValue('usingReRank', !getValues('usingReRank'));
@@ -191,13 +200,18 @@ const DatasetParamsModal = ({
               >
                 <MyIcon name="core/dataset/rerank" w={'18px'} mr={'14px'} />
                 <Box pr={2} color={'myGray.800'} flex={'1 0 0'}>
-                  <Box>{t('core.dataset.search.ReRank')}</Box>
-                  <Box fontSize={['xs', 'sm']} color={'myGray.500'}>
-                    {t('core.dataset.search.ReRank desc')}
+                  <Box fontSize={'sm'}>{t('common:core.dataset.search.ReRank')}</Box>
+                  <Box fontSize={'xs'} color={'myGray.500'}>
+                    {t('common:core.dataset.search.ReRank desc')}
                   </Box>
                 </Box>
                 <Box position={'relative'} w={'18px'} h={'18px'}>
-                  <Checkbox colorScheme="primary" isChecked={getValues('usingReRank')} size="lg" />
+                  <Checkbox
+                    colorScheme="primary"
+                    isChecked={getValues('usingReRank')}
+                    size="lg"
+                    icon={<MyIcon name={'common/check'} w={'12px'} />}
+                  />
                   <Box position={'absolute'} top={0} right={0} bottom={0} left={0} zIndex={1}></Box>
                 </Box>
               </Flex>
@@ -208,12 +222,13 @@ const DatasetParamsModal = ({
           <Box pt={5}>
             {limit !== undefined && (
               <Box display={['block', 'flex']}>
-                <Box flex={'0 0 120px'} mb={[8, 0]}>
-                  {t('core.dataset.search.Max Tokens')}
-                  <MyTooltip label={t('core.dataset.search.Max Tokens Tips')} forceShow>
-                    <QuestionOutlineIcon ml={1} />
-                  </MyTooltip>
-                </Box>
+                <Flex flex={'0 0 120px'} mb={[8, 0]}>
+                  <FormLabel>{t('common:core.dataset.search.Max Tokens')}</FormLabel>
+                  <QuestionTip
+                    ml={1}
+                    label={t('common:core.dataset.search.Max Tokens Tips')}
+                  ></QuestionTip>
+                </Flex>
                 <Box flex={1} mx={4}>
                   <MySlider
                     markList={[
@@ -233,12 +248,13 @@ const DatasetParamsModal = ({
               </Box>
             )}
             <Box display={['block', 'flex']} mt={10}>
-              <Box flex={'0 0 120px'} mb={[8, 0]}>
-                {t('core.dataset.search.Min Similarity')}
-                <MyTooltip label={t('core.dataset.search.Min Similarity Tips')} forceShow>
-                  <QuestionOutlineIcon ml={1} />
-                </MyTooltip>
-              </Box>
+              <Flex flex={'0 0 120px'} mb={[8, 0]}>
+                <FormLabel>{t('common:core.dataset.search.Min Similarity')}</FormLabel>
+                <QuestionTip
+                  ml={1}
+                  label={t('common:core.dataset.search.Min Similarity Tips')}
+                ></QuestionTip>
+              </Flex>
               <Box flex={1} mx={4}>
                 {showSimilarity ? (
                   <MySlider
@@ -256,7 +272,9 @@ const DatasetParamsModal = ({
                     }}
                   />
                 ) : (
-                  <Box color={'myGray.500'}>{t('core.dataset.search.No support similarity')}</Box>
+                  <Box color={'myGray.500'}>
+                    {t('common:core.dataset.search.No support similarity')}
+                  </Box>
                 )}
               </Box>
             </Box>
@@ -264,18 +282,20 @@ const DatasetParamsModal = ({
         )}
         {currentTabType === SearchSettingTabEnum.queryExtension && (
           <Box>
-            <Box fontSize={'xs'} color={'myGray.500'}>
-              {t('core.dataset.Query extension intro')}
+            <Box transform={'translateY(-5px)'} fontSize={'xs'} color={'myGray.500'}>
+              {t('common:core.dataset.Query extension intro')}
             </Box>
             <Flex mt={3} alignItems={'center'}>
-              <Box flex={'1 0 0'}>{t('core.dataset.search.Using query extension')}</Box>
+              <FormLabel flex={'1 0 0'}>
+                {t('common:core.dataset.search.Using query extension')}
+              </FormLabel>
               <Switch {...register('datasetSearchUsingExtensionQuery')} />
             </Flex>
             {datasetSearchUsingCfrForm === true && (
               <>
                 <Flex mt={4} alignItems={'center'}>
-                  <Box flex={'0 0 100px'}>{t('core.ai.Model')}</Box>
-                  <Box flex={'1 0 0'}>
+                  <FormLabel flex={['0 0 80px', '1 0 0']}>{t('common:core.ai.Model')}</FormLabel>
+                  <Box flex={['1 0 0', '0 0 300px']}>
                     <SelectAiModel
                       width={'100%'}
                       value={queryExtensionModel}
@@ -288,16 +308,20 @@ const DatasetParamsModal = ({
                 </Flex>
                 <Box mt={3}>
                   <Flex alignItems={'center'}>
-                    {t('core.app.edit.Query extension background prompt')}
-                    <MyTooltip label={t('core.app.edit.Query extension background tip')} forceShow>
-                      <QuestionOutlineIcon display={['none', 'inline']} ml={1} />
-                    </MyTooltip>
+                    <FormLabel>
+                      {t('common:core.app.edit.Query extension background prompt')}
+                    </FormLabel>
+                    <QuestionTip
+                      ml={1}
+                      label={t('common:core.app.edit.Query extension background tip')}
+                    ></QuestionTip>
                   </Flex>
                   <Box mt={1}>
                     <PromptEditor
-                      h={200}
+                      minH={150}
+                      maxH={300}
                       showOpenModal={false}
-                      placeholder={t('core.module.QueryExtension.placeholder')}
+                      placeholder={t('common:core.module.QueryExtension.placeholder')}
                       value={cfbBgDesc}
                       onChange={(e) => {
                         setValue('datasetSearchExtensionBg', e);
@@ -312,7 +336,7 @@ const DatasetParamsModal = ({
       </ModalBody>
       <ModalFooter>
         <Button variant={'whiteBase'} mr={3} onClick={onClose}>
-          {t('common.Close')}
+          {t('common:common.Close')}
         </Button>
         <Button
           onClick={() => {
@@ -320,7 +344,7 @@ const DatasetParamsModal = ({
             handleSubmit(onSuccess)();
           }}
         >
-          {t('common.Done')}
+          {t('common:common.Done')}
         </Button>
       </ModalFooter>
     </MyModal>

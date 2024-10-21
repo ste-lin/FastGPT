@@ -1,4 +1,4 @@
-import { connectionMongo, type Model } from '../../../common/mongo';
+import { connectionMongo, getMongoModel, type Model } from '../../../common/mongo';
 const { Schema, model, models } = connectionMongo;
 import { UsageSchemaType } from '@fastgpt/global/support/wallet/usage/type';
 import { UsageSourceMap } from '@fastgpt/global/support/wallet/usage/constants';
@@ -63,13 +63,11 @@ const UsageSchema = new Schema({
 try {
   UsageSchema.index({ teamId: 1, tmbId: 1, source: 1, time: -1 }, { background: true });
   // timer task. clear dead team
-  UsageSchema.index({ teamId: 1, time: -1 }, { background: true });
+  // UsageSchema.index({ teamId: 1, time: -1 }, { background: true });
 
   UsageSchema.index({ time: 1 }, { expireAfterSeconds: 180 * 24 * 60 * 60 });
 } catch (error) {
   console.log(error);
 }
 
-export const MongoUsage: Model<UsageSchemaType> =
-  models[UsageCollectionName] || model(UsageCollectionName, UsageSchema);
-MongoUsage.syncIndexes();
+export const MongoUsage = getMongoModel<UsageSchemaType>(UsageCollectionName, UsageSchema);

@@ -1,5 +1,5 @@
-import { connectionMongo, type Model } from '../../common/mongo';
-const { Schema, model, models } = connectionMongo;
+import { connectionMongo, getMongoModel } from '../../common/mongo';
+const { Schema } = connectionMongo;
 import { OutLinkSchema as SchemaType } from '@fastgpt/global/support/outLink/type';
 import {
   TeamCollectionName,
@@ -63,18 +63,7 @@ const OutLinkSchema = new Schema({
     }
   },
   app: {
-    appId: {
-      type: String
-    },
-    appSecret: {
-      type: String
-    },
-    encryptKey: {
-      type: String
-    },
-    verificationToken: {
-      type: String
-    }
+    type: Object // could be FeishuAppType | WecomAppType | ...
   },
   immediateResponse: {
     type: String
@@ -90,7 +79,4 @@ try {
   console.log(error);
 }
 
-export const MongoOutLink: Model<SchemaType> =
-  models['outlinks'] || model('outlinks', OutLinkSchema);
-
-MongoOutLink.syncIndexes();
+export const MongoOutLink = getMongoModel<SchemaType>('outlinks', OutLinkSchema);

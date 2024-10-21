@@ -1,5 +1,5 @@
 import { TeamCollectionName } from '@fastgpt/global/support/user/team/constant';
-import { connectionMongo, type Model } from '../../mongo';
+import { connectionMongo, getMongoModel, type Model } from '../../mongo';
 import { MongoImageSchemaType } from '@fastgpt/global/common/file/image/type.d';
 import { mongoImageTypeMap } from '@fastgpt/global/common/file/image/constants';
 const { Schema, model, models } = connectionMongo;
@@ -31,8 +31,8 @@ const ImageSchema = new Schema({
 });
 
 try {
-  // tts expired
-  ImageSchema.index({ expiredTime: 1 }, { expireAfterSeconds: 60 });
+  // tts expired（60 Minutes）
+  ImageSchema.index({ expiredTime: 1 }, { expireAfterSeconds: 60 * 60 });
   ImageSchema.index({ type: 1 });
   ImageSchema.index({ createTime: 1 });
   // delete related img
@@ -41,7 +41,4 @@ try {
   console.log(error);
 }
 
-export const MongoImage: Model<MongoImageSchemaType> =
-  models['image'] || model('image', ImageSchema);
-
-MongoImage.syncIndexes();
+export const MongoImage = getMongoModel<MongoImageSchemaType>('image', ImageSchema);

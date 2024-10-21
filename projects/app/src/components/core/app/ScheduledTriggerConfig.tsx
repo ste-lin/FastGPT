@@ -1,4 +1,13 @@
-import { Box, Button, Flex, ModalBody, useDisclosure, Switch, Textarea } from '@chakra-ui/react';
+import {
+  Box,
+  Button,
+  Flex,
+  ModalBody,
+  useDisclosure,
+  Switch,
+  Textarea,
+  HStack
+} from '@chakra-ui/react';
 import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import MyIcon from '@fastgpt/web/components/common/Icon';
 import { useTranslation } from 'next-i18next';
@@ -10,11 +19,11 @@ import dynamic from 'next/dynamic';
 import type { MultipleSelectProps } from '@fastgpt/web/components/common/MySelect/type.d';
 import { cronParser2Fields } from '@fastgpt/global/common/string/time';
 import TimezoneSelect from '@fastgpt/web/components/common/MySelect/TimezoneSelect';
-
+import FormLabel from '@fastgpt/web/components/common/MyBox/FormLabel';
 const MultipleRowSelect = dynamic(
   () => import('@fastgpt/web/components/common/MySelect/MultipleRowSelect')
 );
-
+import { i18nT } from '@fastgpt/web/i18n/utils';
 // options type:
 enum CronJobTypeEnum {
   month = 'month',
@@ -30,17 +39,32 @@ const get24HoursOptions = () => {
     value: i
   }));
 };
+
+const getRoute = (i: number) => {
+  switch (i) {
+    case 0:
+      return 'app:week.Sunday';
+    case 1:
+      return 'app:week.Monday';
+    case 2:
+      return 'app:week.Tuesday';
+    case 3:
+      return 'app:week.Wednesday';
+    case 4:
+      return 'app:week.Thursday';
+    case 5:
+      return 'app:week.Friday';
+    case 6:
+      return 'app:week.Saturday';
+    default:
+      return 'app:week.Sunday';
+  }
+};
+
 const getWeekOptions = () => {
   return Array.from({ length: 7 }, (_, i) => {
-    if (i === 0) {
-      return {
-        label: '星期日',
-        value: i,
-        children: get24HoursOptions()
-      };
-    }
     return {
-      label: `星期${i}`,
+      label: i18nT(getRoute(i)),
       value: i,
       children: get24HoursOptions()
     };
@@ -48,7 +72,7 @@ const getWeekOptions = () => {
 };
 const getMonthOptions = () => {
   return Array.from({ length: 28 }, (_, i) => ({
-    label: `${i + 1}号`,
+    label: `${i + 1}` + i18nT('app:month.unit'),
     value: i,
     children: get24HoursOptions()
   }));
@@ -57,27 +81,27 @@ const getInterValOptions = () => {
   // 每n小时
   return [
     {
-      label: `每小时`,
+      label: i18nT('app:interval.per_hour'),
       value: 1
     },
     {
-      label: `每2小时`,
+      label: i18nT('app:interval.2_hours'),
       value: 2
     },
     {
-      label: `每3小时`,
+      label: i18nT('app:interval.3_hours'),
       value: 3
     },
     {
-      label: `每4小时`,
+      label: i18nT('app:interval.4_hours'),
       value: 4
     },
     {
-      label: `每6小时`,
+      label: i18nT('app:interval.6_hours'),
       value: 6
     },
     {
-      label: `每12小时`,
+      label: i18nT('app:interval.12_hours'),
       value: 12
     }
   ];
@@ -99,26 +123,26 @@ const ScheduledTriggerConfig = ({
 
   const timezone = value?.timezone;
   const cronString = value?.cronString;
-  const defaultPrompt = value?.defaultPrompt || '';
+  const defaultPrompt = value?.defaultPrompt;
 
   const cronSelectList = useRef<MultipleSelectProps['list']>([
     {
-      label: '每天执行',
+      label: t('app:cron.every_day'),
       value: CronJobTypeEnum.day,
       children: get24HoursOptions()
     },
     {
-      label: '每周执行',
+      label: t('app:cron.every_week'),
       value: CronJobTypeEnum.week,
       children: getWeekOptions()
     },
     {
-      label: '每月执行',
+      label: t('app:cron.every_month'),
       value: CronJobTypeEnum.month,
       children: getMonthOptions()
     },
     {
-      label: '间隔执行',
+      label: t('app:cron.interval'),
       value: CronJobTypeEnum.interval,
       children: getInterValOptions()
     }
@@ -134,15 +158,10 @@ const ScheduledTriggerConfig = ({
       timezone?: string;
       defaultPrompt?: string;
     }) => {
-      if (!cronString) {
-        onChange(undefined);
-        return;
-      }
       onChange({
-        ...value,
-        cronString,
-        timezone: timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
-        defaultPrompt: defaultPrompt || ''
+        cronString: cronString ?? value?.cronString ?? '',
+        timezone: timezone ?? value?.timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone,
+        defaultPrompt: defaultPrompt ?? value?.defaultPrompt ?? ''
       });
     },
     [onChange, value]
@@ -182,7 +201,7 @@ const ScheduledTriggerConfig = ({
       cronField: [CronJobTypeEnum.interval, 24 / cronField.hour.length, 0]
     };
   }, [cronString]);
-  const isOpenSchedule = cronConfig?.isOpen;
+  const isOpenSchedule = cronConfig?.isOpen ?? false;
   const cronField = (cronConfig?.cronField || defaultValue) as CronFieldType;
 
   const cronConfig2cronString = useCallback(
@@ -208,7 +227,7 @@ const ScheduledTriggerConfig = ({
   // cron config to show label
   const formatLabel = useMemo(() => {
     if (!isOpenSchedule) {
-      return t('common.Not open');
+      return t('common:common.Not open');
     }
 
     if (cronField[0] === 'month') {
@@ -219,7 +238,7 @@ const ScheduledTriggerConfig = ({
     }
     if (cronField[0] === 'week') {
       return t('core.app.schedule.Every week', {
-        day: cronField[1] === 0 ? '日' : cronField[1],
+        day: cronField[1] === 0 ? t('app:day') : cronField[1],
         hour: cronField[2]
       });
     }
@@ -234,7 +253,7 @@ const ScheduledTriggerConfig = ({
       });
     }
 
-    return t('common.Not open');
+    return t('common:common.Not open');
   }, [cronField, isOpenSchedule, t]);
 
   useEffect(() => {
@@ -248,11 +267,11 @@ const ScheduledTriggerConfig = ({
       <>
         <Flex alignItems={'center'}>
           <MyIcon name={'core/app/schedulePlan'} w={'20px'} />
-          <Flex alignItems={'center'} ml={2} flex={1}>
-            {t('core.app.Interval timer run')}
-            <QuestionTip ml={1} label={t('core.app.Interval timer tip')} />
-          </Flex>
-          <MyTooltip label={t('core.app.Config schedule plan')}>
+          <HStack ml={2} flex={1} spacing={1}>
+            <FormLabel>{t('common:core.app.Interval timer run')}</FormLabel>
+            <QuestionTip label={t('common:core.app.Interval timer tip')} />
+          </HStack>
+          <MyTooltip label={t('common:core.app.Config schedule plan')}>
             <Button
               variant={'transparentBase'}
               iconSpacing={1}
@@ -269,14 +288,13 @@ const ScheduledTriggerConfig = ({
           isOpen={isOpen}
           onClose={onClose}
           iconSrc={'core/app/schedulePlan'}
-          title={t('core.app.Interval timer config')}
+          title={t('common:core.app.Interval timer config')}
           overflow={'unset'}
         >
           <ModalBody>
             <Flex justifyContent={'space-between'} alignItems={'center'}>
-              <Box flex={'0 0 80px'}> {t('core.app.schedule.Open schedule')}</Box>
+              <FormLabel flex={'0 0 80px'}>{t('common:core.app.schedule.Open schedule')}</FormLabel>
               <Switch
-                size={'lg'}
                 isChecked={isOpenSchedule}
                 onChange={(e) => {
                   if (e.target.checked) {
@@ -290,7 +308,7 @@ const ScheduledTriggerConfig = ({
             {isOpenSchedule && (
               <>
                 <Flex alignItems={'center'} mt={5}>
-                  <Box flex={'0 0 80px'}>执行时机</Box>
+                  <FormLabel flex={'0 0 80px'}>{t('app:execute_time')}</FormLabel>
                   <Box flex={'1 0 0'}>
                     <MultipleRowSelect
                       label={formatLabel}
@@ -303,7 +321,7 @@ const ScheduledTriggerConfig = ({
                   </Box>
                 </Flex>
                 <Flex alignItems={'center'} mt={5}>
-                  <Box flex={'0 0 80px'}>时区</Box>
+                  <FormLabel flex={'0 0 80px'}>{t('app:time_zone')}</FormLabel>
                   <Box flex={'1 0 0'}>
                     <TimezoneSelect
                       value={timezone}
@@ -314,12 +332,12 @@ const ScheduledTriggerConfig = ({
                   </Box>
                 </Flex>
                 <Box mt={5}>
-                  <Box>{t('core.app.schedule.Default prompt')}</Box>
+                  <FormLabel mb={1}>{t('common:core.app.schedule.Default prompt')}</FormLabel>
                   <Textarea
                     value={defaultPrompt}
                     rows={8}
                     bg={'myGray.50'}
-                    placeholder={t('core.app.schedule.Default prompt placeholder')}
+                    placeholder={t('common:core.app.schedule.Default prompt placeholder')}
                     onChange={(e) => {
                       onUpdate({ defaultPrompt: e.target.value });
                     }}

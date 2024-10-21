@@ -1,11 +1,12 @@
 import { FlowNodeInputTypeEnum, FlowNodeTypeEnum } from '../../../node/constant';
-import { FlowNodeTemplateType } from '../../../type/index.d';
+import { FlowNodeTemplateType } from '../../../type/node.d';
 import {
   FlowNodeTemplateTypeEnum,
   NodeInputKeyEnum,
   WorkflowIOValueTypeEnum
 } from '../../../constants';
 import { getHandleConfig } from '../../utils';
+import { i18nT } from '../../../../../../web/i18n/utils';
 
 export const VariableUpdateNode: FlowNodeTemplateType = {
   id: FlowNodeTypeEnum.variableUpdate,
@@ -13,9 +14,9 @@ export const VariableUpdateNode: FlowNodeTemplateType = {
   flowNodeType: FlowNodeTypeEnum.variableUpdate,
   sourceHandle: getHandleConfig(true, true, true, true),
   targetHandle: getHandleConfig(true, true, true, true),
-  avatar: '/imgs/workflow/variable.png',
-  name: '变量更新',
-  intro: '可以更新指定节点的输出值或更新全局变量',
+  avatar: 'core/workflow/template/variableUpdate',
+  name: i18nT('workflow:variable_update'),
+  intro: i18nT('workflow:update_specified_node_output_or_global_variable'),
   showStatus: false,
   isTool: false,
   version: '481',
@@ -25,10 +26,6 @@ export const VariableUpdateNode: FlowNodeTemplateType = {
       valueType: WorkflowIOValueTypeEnum.any,
       label: '',
       renderTypeList: [FlowNodeInputTypeEnum.hidden],
-      editField: {
-        key: true,
-        valueType: true
-      },
       value: [
         {
           variable: ['', ''],

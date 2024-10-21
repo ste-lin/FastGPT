@@ -1,9 +1,10 @@
 import {
+  datasetQuoteValueDesc,
   FlowNodeInputTypeEnum,
   FlowNodeOutputTypeEnum,
   FlowNodeTypeEnum
 } from '../../node/constant';
-import { FlowNodeTemplateType } from '../../type';
+import { FlowNodeTemplateType } from '../../type/node';
 import {
   WorkflowIOValueTypeEnum,
   NodeInputKeyEnum,
@@ -13,8 +14,7 @@ import {
 import { getNanoid } from '../../../../common/string/tools';
 import { getHandleConfig } from '../utils';
 import { FlowNodeInputItemType } from '../../type/io.d';
-
-const defaultQuoteKey = 'defaultQuoteKey';
+import { i18nT } from '../../../../../web/i18n/utils';
 
 export const getOneQuoteInputTemplate = ({
   key = getNanoid(),
@@ -25,10 +25,9 @@ export const getOneQuoteInputTemplate = ({
 }): FlowNodeInputItemType => ({
   key,
   renderTypeList: [FlowNodeInputTypeEnum.reference],
-  label: `引用${index}`,
-  debugLabel: '知识库引用',
-  canEdit: key !== defaultQuoteKey,
-  description: '',
+  label: `${i18nT('workflow:quote_num')},{ num: ${index} }`,
+  debugLabel: i18nT('workflow:knowledge_base_reference'),
+  canEdit: true,
   valueType: WorkflowIOValueTypeEnum.datasetQuote
 });
 
@@ -38,33 +37,36 @@ export const DatasetConcatModule: FlowNodeTemplateType = {
   templateType: FlowNodeTemplateTypeEnum.other,
   sourceHandle: getHandleConfig(true, true, true, true),
   targetHandle: getHandleConfig(true, true, true, true),
-  avatar: '/imgs/workflow/concat.svg',
-  name: '知识库搜索引用合并',
-  intro: '可以将多个知识库搜索结果进行合并输出。使用 RRF 的合并方式进行最终排序输出。',
+  avatar: 'core/workflow/template/datasetConcat',
+  name: i18nT('workflow:knowledge_base_search_merge'),
+  intro: i18nT('workflow:intro_knowledge_base_search_merge'),
+
   showStatus: false,
-  version: '481',
+  version: '486',
   inputs: [
     {
       key: NodeInputKeyEnum.datasetMaxTokens,
       renderTypeList: [FlowNodeInputTypeEnum.custom],
-      label: '最大 Tokens',
+      label: i18nT('workflow:max_tokens'),
+
       value: 3000,
       valueType: WorkflowIOValueTypeEnum.number
     },
     {
-      key: 'customComponent',
+      key: NodeInputKeyEnum.datasetQuoteList,
       renderTypeList: [FlowNodeInputTypeEnum.custom],
       label: ''
-    },
-    getOneQuoteInputTemplate({ key: defaultQuoteKey, index: 1 })
+    }
+    // getOneQuoteInputTemplate({ key: defaultQuoteKey, index: 1 })
   ],
   outputs: [
     {
       id: NodeOutputKeyEnum.datasetQuoteQA,
       key: NodeOutputKeyEnum.datasetQuoteQA,
-      label: 'core.module.Dataset quote.label',
+      label: i18nT('common:core.module.Dataset quote.label'),
       type: FlowNodeOutputTypeEnum.static,
-      valueType: WorkflowIOValueTypeEnum.datasetQuote
+      valueType: WorkflowIOValueTypeEnum.datasetQuote,
+      valueDesc: datasetQuoteValueDesc
     }
   ]
 };

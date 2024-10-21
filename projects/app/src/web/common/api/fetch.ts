@@ -1,9 +1,8 @@
 import { SseResponseEventEnum } from '@fastgpt/global/core/workflow/runtime/constants';
 import { getErrText } from '@fastgpt/global/common/error/utils';
 import type { ChatHistoryItemResType } from '@fastgpt/global/core/chat/type.d';
-import type { StartChatFnProps } from '@/components/ChatBox/type.d';
+import type { StartChatFnProps } from '@/components/core/chat/ChatContainer/type';
 import { DispatchNodeResponseKeyEnum } from '@fastgpt/global/core/workflow/runtime/constants';
-import dayjs from 'dayjs';
 import {
   // refer to https://github.com/ChatGPTNextWeb/ChatGPT-Next-Web
   EventStreamContentType,
@@ -11,6 +10,7 @@ import {
 } from '@fortaine/fetch-event-source';
 import { TeamErrEnum } from '@fastgpt/global/common/error/code/team';
 import { useSystemStore } from '../system/useSystemStore';
+import { formatTime2YMDHMW } from '@fastgpt/global/common/string/time';
 
 type StreamFetchProps = {
   url?: string;
@@ -22,6 +22,16 @@ export type StreamResponseType = {
   responseText: string;
   [DispatchNodeResponseKeyEnum.nodeResponse]: ChatHistoryItemResType[];
 };
+type ResponseQueueItemType =
+  | { event: SseResponseEventEnum.fastAnswer | SseResponseEventEnum.answer; text: string }
+  | { event: SseResponseEventEnum.interactive; [key: string]: any }
+  | {
+      event:
+        | SseResponseEventEnum.toolCall
+        | SseResponseEventEnum.toolParams
+        | SseResponseEventEnum.toolResponse;
+      [key: string]: any;
+    };
 class FatalError extends Error {}
 
 export const streamFetch = ({
@@ -31,22 +41,14 @@ export const streamFetch = ({
   abortCtrl
 }: StreamFetchProps) =>
   new Promise<StreamResponseType>(async (resolve, reject) => {
+    // First res
     const timeoutId = setTimeout(() => {
       abortCtrl.abort('Time out');
     }, 60000);
 
     // response data
     let responseText = '';
-    let responseQueue: (
-      | { event: SseResponseEventEnum.fastAnswer | SseResponseEventEnum.answer; text: string }
-      | {
-          event:
-            | SseResponseEventEnum.toolCall
-            | SseResponseEventEnum.toolParams
-            | SseResponseEventEnum.toolResponse;
-          [key: string]: any;
-        }
-    )[] = [];
+    let responseQueue: ResponseQueueItemType[] = [];
     let errMsg: string | undefined;
     let responseData: ChatHistoryItemResType[] = [];
     let finished = false;
@@ -105,10 +107,19 @@ export const streamFetch = ({
     // start animation
     animateResponseText();
 
+    const pushDataToQueue = (data: ResponseQueueItemType) => {
+      // If the document is hidden, the data is directly sent to the front end
+      responseQueue.push(data);
+
+      if (document.hidden) {
+        animateResponseText();
+      }
+    };
+
     try {
       // auto complete variables
       const variables = data?.variables || {};
-      variables.cTime = dayjs().format('YYYY-MM-DD HH:mm:ss dddd');
+      variables.cTime = formatTime2YMDHMW();
 
       const requestData = {
         method: 'POST',
@@ -169,14 +180,14 @@ export const streamFetch = ({
           if (event === SseResponseEventEnum.answer) {
             const text = parseJson.choices?.[0]?.delta?.content || '';
             for (const item of text) {
-              responseQueue.push({
+              pushDataToQueue({
                 event,
                 text: item
               });
             }
           } else if (event === SseResponseEventEnum.fastAnswer) {
             const text = parseJson.choices?.[0]?.delta?.content || '';
-            responseQueue.push({
+            pushDataToQueue({
               event,
               text
             });
@@ -185,7 +196,7 @@ export const streamFetch = ({
             event === SseResponseEventEnum.toolParams ||
             event === SseResponseEventEnum.toolResponse
           ) {
-            responseQueue.push({
+            pushDataToQueue({
               event,
               ...parseJson
             });
@@ -200,6 +211,11 @@ export const streamFetch = ({
             onMessage({
               event,
               variables: parseJson
+            });
+          } else if (event === SseResponseEventEnum.interactive) {
+            pushDataToQueue({
+              event,
+              ...parseJson
             });
           } else if (event === SseResponseEventEnum.error) {
             if (parseJson.statusText === TeamErrEnum.aiPointsNotEnough) {

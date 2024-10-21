@@ -1,14 +1,16 @@
 import type {
   StoreNodeItemType,
-  FlowNodeItemType,
-  FlowNodeTemplateType
-} from '@fastgpt/global/core/workflow/type/index.d';
+  FlowNodeItemType
+} from '@fastgpt/global/core/workflow/type/node.d';
+import type { FlowNodeTemplateType } from '@fastgpt/global/core/workflow/type/node';
 import type { Edge, Node, XYPosition } from 'reactflow';
 import { moduleTemplatesFlat } from '@fastgpt/global/core/workflow/template/constants';
 import {
   EDGE_TYPE,
   FlowNodeInputTypeEnum,
-  FlowNodeTypeEnum
+  FlowNodeOutputTypeEnum,
+  FlowNodeTypeEnum,
+  defaultNodeVersion
 } from '@fastgpt/global/core/workflow/node/constant';
 import { EmptyNode } from '@fastgpt/global/core/workflow/template/system/emptyNode';
 import { StoreEdgeItemType } from '@fastgpt/global/core/workflow/type/edge';
@@ -22,7 +24,6 @@ import {
   getAppChatConfig,
   getGuideModule
 } from '@fastgpt/global/core/workflow/utils';
-import { getSystemVariables } from '../app/utils';
 import { TFunction } from 'next-i18next';
 import {
   FlowNodeInputItemType,
@@ -32,20 +33,31 @@ import {
 import { IfElseListItemType } from '@fastgpt/global/core/workflow/template/system/ifElse/type';
 import { VariableConditionEnum } from '@fastgpt/global/core/workflow/template/system/ifElse/constant';
 import { AppChatConfigType } from '@fastgpt/global/core/app/type';
+import { cloneDeep, isEqual } from 'lodash';
+import { getInputComponentProps } from '@fastgpt/global/core/workflow/node/io/utils';
+import { workflowSystemVariables } from '../app/utils';
 
 export const nodeTemplate2FlowNode = ({
   template,
   position,
-  selected
+  selected,
+  parentNodeId,
+  zIndex,
+  t
 }: {
   template: FlowNodeTemplateType;
   position: XYPosition;
   selected?: boolean;
+  parentNodeId?: string;
+  zIndex?: number;
+  t: TFunction;
 }): Node<FlowNodeItemType> => {
   // replace item data
   const moduleItem: FlowNodeItemType = {
     ...template,
-    nodeId: getNanoid()
+    name: t(template.name as any),
+    nodeId: getNanoid(),
+    parentNodeId
   };
 
   return {
@@ -53,54 +65,106 @@ export const nodeTemplate2FlowNode = ({
     type: moduleItem.flowNodeType,
     data: moduleItem,
     position: position,
-    selected
+    selected,
+    zIndex
   };
 };
 export const storeNode2FlowNode = ({
-  item: storeNode
+  item: storeNode,
+  selected = false,
+  zIndex,
+  parentNodeId,
+  t
 }: {
   item: StoreNodeItemType;
+  selected?: boolean;
+  zIndex?: number;
+  parentNodeId?: string;
+  t: TFunction;
 }): Node<FlowNodeItemType> => {
   // init some static data
   const template =
     moduleTemplatesFlat.find((template) => template.flowNodeType === storeNode.flowNodeType) ||
     EmptyNode;
 
+  const templateInputs = template.inputs.filter((input) => !input.canEdit);
+  const templateOutputs = template.outputs.filter(
+    (output) => output.type !== FlowNodeOutputTypeEnum.dynamic
+  );
+  const dynamicInput = template.inputs.find(
+    (input) => input.renderTypeList[0] === FlowNodeInputTypeEnum.addInputParam
+  );
+
   // replace item data
-  const moduleItem: FlowNodeItemType = {
+  const nodeItem: FlowNodeItemType = {
+    parentNodeId,
     ...template,
     ...storeNode,
-    avatar: storeNode?.avatar || template?.avatar,
-    inputs: storeNode.inputs
-      .map((storeInput) => {
-        const templateInput =
-          template.inputs.find((item) => item.key === storeInput.key) || storeInput;
+    avatar: template.avatar ?? storeNode.avatar,
+    version: storeNode.version ?? template.version ?? defaultNodeVersion,
+    /* 
+      Inputs and outputs, New fields are added, not reduced
+    */
+    inputs: templateInputs
+      .map<FlowNodeInputItemType>((templateInput) => {
+        const storeInput =
+          storeNode.inputs.find((item) => item.key === templateInput.key) || templateInput;
+
         return {
-          ...templateInput,
           ...storeInput,
-          renderTypeList: templateInput.renderTypeList
+          ...templateInput,
+
+          debugLabel: t(templateInput.debugLabel ?? (storeInput.debugLabel as any)),
+          toolDescription: t(templateInput.toolDescription ?? (storeInput.toolDescription as any)),
+
+          selectedTypeIndex: storeInput.selectedTypeIndex ?? templateInput.selectedTypeIndex,
+          value: storeInput.value ?? templateInput.value,
+          label: storeInput.label ?? templateInput.label
         };
       })
       .concat(
-        template.inputs.filter((item) => !storeNode.inputs.some((input) => input.key === item.key))
+        /* Concat dynamic inputs */
+        storeNode.inputs
+          .filter((item) => !templateInputs.find((input) => input.key === item.key))
+          .map((item) => {
+            if (!dynamicInput) return item;
+
+            return {
+              ...item,
+              ...getInputComponentProps(dynamicInput)
+            };
+          })
       ),
-    outputs: storeNode.outputs.map((storeOutput) => {
-      const templateOutput =
-        template.outputs.find((item) => item.key === storeOutput.key) || storeOutput;
-      return {
-        ...storeOutput,
-        ...templateOutput,
-        value: storeOutput.value
-      };
-    }),
-    version: storeNode.version || '481'
+    outputs: templateOutputs
+      .map<FlowNodeOutputItemType>((templateOutput) => {
+        const storeOutput =
+          template.outputs.find((item) => item.key === templateOutput.key) || templateOutput;
+
+        return {
+          ...storeOutput,
+          ...templateOutput,
+
+          description: t(templateOutput.description ?? (storeOutput.description as any)),
+
+          id: storeOutput.id ?? templateOutput.id,
+          label: storeOutput.label ?? templateOutput.label,
+          value: storeOutput.value ?? templateOutput.value
+        };
+      })
+      .concat(
+        storeNode.outputs.filter(
+          (item) => !templateOutputs.find((output) => output.key === item.key)
+        )
+      )
   };
 
   return {
     id: storeNode.nodeId,
     type: storeNode.flowNodeType,
-    data: moduleItem,
-    position: storeNode.position || { x: 0, y: 0 }
+    data: nodeItem,
+    selected,
+    position: storeNode.position || { x: 0, y: 0 },
+    zIndex
   };
 };
 export const storeEdgesRenderEdge = ({ edge }: { edge: StoreEdgeItemType }) => {
@@ -147,7 +211,7 @@ export const computedNodeInputReference = ({
   };
   findSourceNode(nodeId);
 
-  sourceNodes.unshift(
+  sourceNodes.push(
     getGlobalVariableNode({
       nodes,
       t,
@@ -160,13 +224,11 @@ export const computedNodeInputReference = ({
 export const getRefData = ({
   variable,
   nodeList,
-  chatConfig,
-  t
+  chatConfig
 }: {
   variable?: ReferenceValueProps;
   nodeList: FlowNodeItemType[];
   chatConfig: AppChatConfigType;
-  t: TFunction;
 }) => {
   if (!variable)
     return {
@@ -175,7 +237,7 @@ export const getRefData = ({
     };
 
   const node = nodeList.find((node) => node.nodeId === variable[0]);
-  const systemVariables = getWorkflowGlobalVariables({ nodes: nodeList, chatConfig, t });
+  const systemVariables = getWorkflowGlobalVariables({ nodes: nodeList, chatConfig });
 
   if (!node) {
     const globalVariable = systemVariables.find((item) => item.key === variable?.[1]);
@@ -217,9 +279,10 @@ export const checkWorkflowNodeAndConnection = ({
 
     if (
       data.flowNodeType === FlowNodeTypeEnum.systemConfig ||
+      data.flowNodeType === FlowNodeTypeEnum.pluginConfig ||
       data.flowNodeType === FlowNodeTypeEnum.pluginInput ||
-      data.flowNodeType === FlowNodeTypeEnum.pluginOutput ||
-      data.flowNodeType === FlowNodeTypeEnum.workflowStart
+      data.flowNodeType === FlowNodeTypeEnum.workflowStart ||
+      data.flowNodeType === FlowNodeTypeEnum.comment
     ) {
       continue;
     }
@@ -319,12 +382,10 @@ export const filterSensitiveNodesData = (nodes: StoreNodeItemType[]) => {
 /* get workflowStart output to global variables */
 export const getWorkflowGlobalVariables = ({
   nodes,
-  chatConfig,
-  t
+  chatConfig
 }: {
   nodes: FlowNodeItemType[];
   chatConfig: AppChatConfigType;
-  t: TFunction;
 }): EditorVariablePickerType[] => {
   const globalVariables = formatEditorVariablePickerIcon(
     getAppChatConfig({
@@ -332,48 +393,159 @@ export const getWorkflowGlobalVariables = ({
       systemConfigNode: getGuideModule(nodes),
       isPublicFetch: true
     })?.variables || []
-  ).map((item) => ({
-    ...item,
-    valueType: WorkflowIOValueTypeEnum.any
-  }));
+  );
 
-  const systemVariables = getSystemVariables(t);
-
-  return [...globalVariables, ...systemVariables];
+  return [...globalVariables, ...workflowSystemVariables];
 };
 
 export type CombinedItemType = Partial<FlowNodeInputItemType> & Partial<FlowNodeOutputItemType>;
 
-export const updateFlowNodeVersion = (
+/* Reset node to latest version */
+export const getLatestNodeTemplate = (
   node: FlowNodeItemType,
   template: FlowNodeTemplateType
 ): FlowNodeItemType => {
-  function updateArrayBasedOnTemplate<T extends FlowNodeInputItemType | FlowNodeOutputItemType>(
-    nodeArray: T[],
-    templateArray: T[]
-  ): T[] {
-    return templateArray.map((templateItem) => {
-      const nodeItem = nodeArray.find((item) => item.key === templateItem.key);
-      if (nodeItem) {
-        return { ...templateItem, ...nodeItem } as T;
-      }
-      return { ...templateItem };
-    });
-  }
-
   const updatedNode: FlowNodeItemType = {
     ...node,
     ...template,
+    inputs: template.inputs.map((templateItem) => {
+      const nodeItem = node.inputs.find((item) => item.key === templateItem.key);
+      if (nodeItem) {
+        return {
+          ...templateItem,
+          value: nodeItem.value,
+          selectedTypeIndex: nodeItem.selectedTypeIndex,
+          valueType: nodeItem.valueType
+        };
+      }
+      return { ...templateItem };
+    }),
+    outputs: template.outputs.map((templateItem) => {
+      const nodeItem = node.outputs.find((item) => item.key === templateItem.key);
+      if (nodeItem) {
+        return {
+          ...templateItem,
+          id: nodeItem.id,
+          value: nodeItem.value,
+          valueType: nodeItem.valueType
+        };
+      }
+      return { ...templateItem };
+    }),
     name: node.name,
     intro: node.intro
   };
 
-  if (node.inputs && template.inputs) {
-    updatedNode.inputs = updateArrayBasedOnTemplate(node.inputs, template.inputs);
+  return updatedNode;
+};
+
+export const compareSnapshot = (
+  snapshot1: {
+    nodes?: Node[];
+    edges: Edge<any>[] | undefined;
+    chatConfig?: AppChatConfigType;
+  },
+  snapshot2: {
+    nodes?: Node[];
+    edges: Edge<any>[];
+    chatConfig?: AppChatConfigType;
   }
-  if (node.outputs && template.outputs) {
-    updatedNode.outputs = updateArrayBasedOnTemplate(node.outputs, template.outputs);
+) => {
+  const clone1 = cloneDeep(snapshot1);
+  const clone2 = cloneDeep(snapshot2);
+
+  if (!clone1.nodes || !clone2.nodes) return false;
+  const formatEdge = (edges: Edge[] | undefined) => {
+    if (!edges) return [];
+    return edges.map((edge) => ({
+      source: edge.source,
+      target: edge.target,
+      sourceHandle: edge.sourceHandle,
+      targetHandle: edge.targetHandle,
+      type: edge.type
+    }));
+  };
+
+  if (!isEqual(formatEdge(clone1.edges), formatEdge(clone2.edges))) {
+    console.log('Edge not equal');
+    return false;
   }
 
-  return updatedNode;
+  if (
+    clone1.chatConfig &&
+    clone2.chatConfig &&
+    !isEqual(
+      {
+        welcomeText: clone1.chatConfig?.welcomeText || '',
+        variables: clone1.chatConfig?.variables || [],
+        questionGuide: clone1.chatConfig?.questionGuide || false,
+        ttsConfig: clone1.chatConfig?.ttsConfig || undefined,
+        whisperConfig: clone1.chatConfig?.whisperConfig || undefined,
+        scheduledTriggerConfig: clone1.chatConfig?.scheduledTriggerConfig || undefined,
+        chatInputGuide: clone1.chatConfig?.chatInputGuide || undefined,
+        fileSelectConfig: clone1.chatConfig?.fileSelectConfig || undefined,
+        instruction: clone1.chatConfig?.instruction || ''
+      },
+      {
+        welcomeText: clone2.chatConfig?.welcomeText || '',
+        variables: clone2.chatConfig?.variables || [],
+        questionGuide: clone2.chatConfig?.questionGuide || false,
+        ttsConfig: clone2.chatConfig?.ttsConfig || undefined,
+        whisperConfig: clone2.chatConfig?.whisperConfig || undefined,
+        scheduledTriggerConfig: clone2.chatConfig?.scheduledTriggerConfig || undefined,
+        chatInputGuide: clone2.chatConfig?.chatInputGuide || undefined,
+        fileSelectConfig: clone2.chatConfig?.fileSelectConfig || undefined,
+        instruction: clone2.chatConfig?.instruction || ''
+      }
+    )
+  ) {
+    console.log('chatConfig not equal');
+    return false;
+  }
+
+  const formatNodes = (nodes: Node[]) => {
+    return nodes
+      .filter((node) => {
+        if (!node) return;
+        if (FlowNodeTypeEnum.systemConfig === node.type) return;
+
+        return true;
+      })
+      .map((node) => ({
+        id: node.id,
+        type: node.type,
+        position: node.position,
+        data: {
+          id: node.data.id,
+          flowNodeType: node.data.flowNodeType,
+          inputs: node.data.inputs.map((input: FlowNodeInputItemType) => ({
+            key: input.key,
+            selectedTypeIndex: input.selectedTypeIndex ?? 0,
+            renderTypeLis: input.renderTypeList,
+            valueType: input.valueType,
+            value: input.value ?? undefined
+          })),
+          outputs: node.data.outputs.map((item: FlowNodeOutputItemType) => ({
+            key: item.key,
+            type: item.type,
+            value: item.value ?? undefined
+          })),
+          name: node.data.name,
+          intro: node.data.intro,
+          avatar: node.data.avatar,
+          version: node.data.version,
+          isFolded: node.data.isFolded
+        }
+      }));
+  };
+  const node1 = formatNodes(clone1.nodes);
+  const node2 = formatNodes(clone2.nodes);
+
+  node1.forEach((node, i) => {
+    if (!isEqual(node, node2[i])) {
+      console.log('node not equal');
+    }
+  });
+
+  return isEqual(node1, node2);
 };

@@ -1,11 +1,19 @@
-import { useState, useRef, useTransition, useEffect } from 'react';
+/**
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ */
+
+import { useState, useTransition } from 'react';
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
 import { PlainTextPlugin } from '@lexical/react/LexicalPlainTextPlugin';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
 import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
 import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
 import LexicalErrorBoundary from '@lexical/react/LexicalErrorBoundary';
-import VariablePickerPlugin from './plugins/VariablePickerPlugin';
+import VariableLabelPickerPlugin from './plugins/VariableLabelPickerPlugin';
 import { Box } from '@chakra-ui/react';
 import styles from './index.module.scss';
 import VariablePlugin from './plugins/VariablePlugin';
@@ -13,82 +21,82 @@ import { VariableNode } from './plugins/VariablePlugin/node';
 import { EditorState, LexicalEditor } from 'lexical';
 import OnBlurPlugin from './plugins/OnBlurPlugin';
 import MyIcon from '../../Icon';
-import { EditorVariablePickerType } from './type.d';
+import { EditorVariableLabelPickerType, EditorVariablePickerType } from './type.d';
 import { getNanoid } from '@fastgpt/global/common/string/tools';
 import FocusPlugin from './plugins/FocusPlugin';
 import { textToEditorState } from './utils';
 import { MaxLengthPlugin } from './plugins/MaxLengthPlugin';
+import { VariableLabelNode } from './plugins/VariableLabelPlugin/node';
+import VariableLabelPlugin from './plugins/VariableLabelPlugin';
+import { useDeepCompareEffect } from 'ahooks';
+import VariablePickerPlugin from './plugins/VariablePickerPlugin';
 
 export default function Editor({
-  h = 200,
+  minH = 200,
+  maxH = 400,
   maxLength,
-  showResize = true,
   showOpenModal = true,
   onOpenModal,
   variables,
+  variableLabels,
   onChange,
   onBlur,
   value,
   placeholder = '',
-  isFlow
+  isFlow,
+  bg = 'white'
 }: {
-  h?: number;
+  minH?: number;
+  maxH?: number;
   maxLength?: number;
-  showResize?: boolean;
   showOpenModal?: boolean;
   onOpenModal?: () => void;
   variables: EditorVariablePickerType[];
+  variableLabels: EditorVariableLabelPickerType[];
   onChange?: (editorState: EditorState, editor: LexicalEditor) => void;
   onBlur?: (editor: LexicalEditor) => void;
   value?: string;
   placeholder?: string;
   isFlow?: boolean;
+  bg?: string;
 }) {
   const [key, setKey] = useState(getNanoid(6));
   const [_, startSts] = useTransition();
-  const [height, setHeight] = useState(h);
   const [focus, setFocus] = useState(false);
 
   const initialConfig = {
     namespace: 'promptEditor',
-    nodes: [VariableNode],
+    nodes: [VariableNode, VariableLabelNode],
     editorState: textToEditorState(value),
     onError: (error: Error) => {
       throw error;
     }
   };
 
-  const initialY = useRef(0);
-  const handleMouseDown = (e: React.MouseEvent) => {
-    initialY.current = e.clientY;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const deltaY = e.clientY - initialY.current;
-      setHeight((prevHeight) => (prevHeight + deltaY < h * 0.5 ? h * 0.5 : prevHeight + deltaY));
-      initialY.current = e.clientY;
-    };
-
-    const handleMouseUp = () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-  };
-
-  useEffect(() => {
+  useDeepCompareEffect(() => {
     if (focus) return;
     setKey(getNanoid(6));
-  }, [value, variables.length]);
+  }, [value, variables, variableLabels]);
 
   return (
-    <Box position={'relative'} width={'full'} h={`${height}px`} cursor={'text'}>
+    <Box
+      className="nowheel"
+      position={'relative'}
+      width={'full'}
+      cursor={'text'}
+      color={'myGray.700'}
+      bg={focus ? 'white' : bg}
+      borderRadius={'md'}
+    >
       <LexicalComposer initialConfig={initialConfig} key={key}>
         <PlainTextPlugin
           contentEditable={
             <ContentEditable
               className={isFlow ? styles.contentEditable_isFlow : styles.contentEditable}
+              style={{
+                minHeight: `${minH}px`,
+                maxHeight: `${maxH}px`
+              }}
             />
           }
           placeholder={
@@ -105,7 +113,7 @@ export default function Editor({
             >
               <Box
                 color={'myGray.400'}
-                fontSize={'11px'}
+                fontSize={'mini'}
                 userSelect={'none'}
                 whiteSpace={'pre-wrap'}
                 wordBreak={'break-all'}
@@ -127,23 +135,12 @@ export default function Editor({
             });
           }}
         />
-        <VariablePickerPlugin variables={variables} />
+        <VariableLabelPlugin variables={variableLabels} />
         <VariablePlugin variables={variables} />
+        <VariableLabelPickerPlugin variables={variableLabels} isFocus={focus} />
+        <VariablePickerPlugin variables={variableLabels.length > 0 ? [] : variables} />
         <OnBlurPlugin onBlur={onBlur} />
       </LexicalComposer>
-      {showResize && (
-        <Box
-          position={'absolute'}
-          right={'0'}
-          bottom={'-1'}
-          zIndex={9}
-          cursor={'ns-resize'}
-          px={'2px'}
-          onMouseDown={handleMouseDown}
-        >
-          <MyIcon name={'common/editor/resizer'} width={'14px'} height={'14px'} />
-        </Box>
-      )}
       {showOpenModal && (
         <Box
           zIndex={10}

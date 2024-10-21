@@ -1,3 +1,4 @@
+import { batchRun } from '../fn/utils';
 import { simpleText } from './tools';
 
 /* Delete redundant text in markdown */
@@ -53,23 +54,26 @@ export const uploadMarkdownBase64 = async ({
     const base64Arr = rawText.match(base64Regex) || [];
 
     // upload base64 and replace it
-    for await (const base64Img of base64Arr) {
-      try {
-        const str = await uploadImgController(base64Img);
-
-        rawText = rawText.replace(base64Img, str);
-      } catch (error) {
-        rawText = rawText.replace(base64Img, '');
-        rawText = rawText.replace(/!\[.*\]\(\)/g, '');
-      }
-    }
+    await batchRun(
+      base64Arr,
+      async (base64Img) => {
+        try {
+          const str = await uploadImgController(base64Img);
+          rawText = rawText.replace(base64Img, str);
+        } catch (error) {
+          rawText = rawText.replace(base64Img, '');
+          rawText = rawText.replace(/!\[.*\]\(\)/g, '');
+        }
+      },
+      20
+    );
   }
 
   // Remove white space on both sides of the picture
-  const trimReg = /(!\[.*\]\(.*\))\s*/g;
-  if (trimReg.test(rawText)) {
-    rawText = rawText.replace(trimReg, '$1');
-  }
+  // const trimReg = /(!\[.*\]\(.*\))\s*/g;
+  // if (trimReg.test(rawText)) {
+  //   rawText = rawText.replace(trimReg, '$1');
+  // }
 
   return rawText;
 };

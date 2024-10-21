@@ -1,19 +1,9 @@
-import React, { useCallback, useEffect, useRef } from 'react';
-import Head from 'next/head';
-import { getTeamChatInfo } from '@/web/core/chat/api';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import NextHead from '@/components/common/NextHead';
+import { delChatRecordById, getTeamChatInfo } from '@/web/core/chat/api';
 import { useRouter } from 'next/router';
-import {
-  Box,
-  Flex,
-  useDisclosure,
-  Drawer,
-  DrawerOverlay,
-  DrawerContent,
-  useTheme
-} from '@chakra-ui/react';
+import { Box, Flex, Drawer, DrawerOverlay, DrawerContent, useTheme } from '@chakra-ui/react';
 import { useToast } from '@fastgpt/web/hooks/useToast';
-import { useQuery } from '@tanstack/react-query';
-import { useSystemStore } from '@/web/common/system/useSystemStore';
 import SideBar from '@/components/SideBar';
 import PageContainer from '@/components/PageContainer';
 import { getMyTokensApps } from '@/web/core/chat/api';
@@ -21,22 +11,29 @@ import ChatHistorySlider from './components/ChatHistorySlider';
 import ChatHeader from './components/ChatHeader';
 import { serviceSideProps } from '@/web/common/utils/i18n';
 import { useTranslation } from 'next-i18next';
-import { checkChatSupportSelectFileByChatModels } from '@/web/core/chat/utils';
-import { useChatStore } from '@/web/core/chat/storeChat';
-import { customAlphabet } from 'nanoid';
-const nanoid = customAlphabet('abcdefghijklmnopqrstuvwxyz1234567890', 12);
-import ChatBox from '@/components/ChatBox';
-import type { ComponentRef, StartChatFnProps } from '@/components/ChatBox/type.d';
+import ChatBox from '@/components/core/chat/ChatContainer/ChatBox';
+import type { StartChatFnProps } from '@/components/core/chat/ChatContainer/type';
 import { streamFetch } from '@/web/common/api/fetch';
-import type { ChatHistoryItemType } from '@fastgpt/global/core/chat/type.d';
 import { getChatTitleFromChatMessage } from '@fastgpt/global/core/chat/utils';
-import { ChatStatusEnum } from '@fastgpt/global/core/chat/constants';
-import { getErrText } from '@fastgpt/global/common/error/utils';
-import MyBox from '@fastgpt/web/components/common/MyBox';
 import SliderApps from './components/SliderApps';
 import { GPTMessages2Chats } from '@fastgpt/global/core/chat/adapt';
+import { useRequest2 } from '@fastgpt/web/hooks/useRequest';
+import ChatContextProvider, { ChatContext } from '@/web/core/chat/context/chatContext';
+import { AppListItemType } from '@fastgpt/global/core/app/type';
+import { useContextSelector } from 'use-context-selector';
+import { InitChatResponse } from '@/global/core/chat/api';
+import { defaultChatData, GetChatTypeEnum } from '@/global/core/chat/constants';
+import { AppTypeEnum } from '@fastgpt/global/core/app/constants';
+import { getNanoid } from '@fastgpt/global/common/string/tools';
+import { useChat } from '@/components/core/chat/ChatContainer/useChat';
 
-const OutLink = () => {
+import dynamic from 'next/dynamic';
+import { useSystem } from '@fastgpt/web/hooks/useSystem';
+const CustomPluginRunBox = dynamic(() => import('./components/CustomPluginRunBox'));
+
+type Props = { appId: string; chatId: string; teamId: string; teamToken: string };
+
+const Chat = ({ myApps }: { myApps: AppListItemType[] }) => {
   const { t } = useTranslation();
   const router = useRouter();
   const {
@@ -45,97 +42,93 @@ const OutLink = () => {
     chatId = '',
     teamToken,
     ...customVariables
-  } = router.query as {
-    teamId: string;
-    appId: string;
-    chatId: string;
-    teamToken: string;
+  } = router.query as Props & {
     [key: string]: string;
   };
 
   const { toast } = useToast();
   const theme = useTheme();
-  const { isPc } = useSystemStore();
-  const ChatBoxRef = useRef<ComponentRef>(null);
-  const forbidRefresh = useRef(false);
+  const { isPc } = useSystem();
 
-  const { isOpen: isOpenSlider, onClose: onCloseSlider, onOpen: onOpenSlider } = useDisclosure();
+  const [chatData, setChatData] = useState<InitChatResponse>(defaultChatData);
+
   const {
-    chatData,
-    setChatData,
-    histories,
-    loadHistories,
-    lastChatAppId,
-    lastChatId,
-    pushHistory,
-    updateHistory,
-    delOneHistory,
-    delOneHistoryItem,
-    clearHistories
-  } = useChatStore();
+    onUpdateHistoryTitle,
+    onUpdateHistory,
+    onClearHistories,
+    onDelHistory,
+    isOpenSlider,
+    onCloseSlider,
+    forbidLoadChat,
+    onChangeChatId
+  } = useContextSelector(ChatContext, (v) => v);
+
+  const params = useMemo(() => {
+    return {
+      appId,
+      chatId,
+      teamId,
+      teamToken,
+      type: GetChatTypeEnum.team
+    };
+  }, [appId, chatId, teamId, teamToken]);
+  const {
+    ChatBoxRef,
+    variablesForm,
+    pluginRunTab,
+    setPluginRunTab,
+    resetVariables,
+    chatRecords,
+    ScrollData,
+    setChatRecords,
+    totalRecordsCount
+  } = useChat(params);
 
   const startChat = useCallback(
-    async ({ messages, controller, generatingMessage, variables }: StartChatFnProps) => {
-      const prompts = messages.slice(-2);
-      const completionChatId = chatId ? chatId : nanoid();
+    async ({
+      messages,
+      controller,
+      generatingMessage,
+      variables,
+      responseChatItemId
+    }: StartChatFnProps) => {
+      const completionChatId = chatId || getNanoid();
+      // Just send a user prompt
+      const histories = messages.slice(-1);
 
       const { responseText, responseData } = await streamFetch({
         data: {
-          messages: prompts,
+          messages: histories,
           variables: {
-            ...customVariables,
-            ...variables
+            ...variables,
+            ...customVariables
           },
+          responseChatItemId,
           appId,
           teamId,
           teamToken,
-          chatId: completionChatId
+          chatId: completionChatId,
+          appType: chatData.app.type
         },
         onMessage: generatingMessage,
         abortCtrl: controller
       });
 
-      const newTitle = getChatTitleFromChatMessage(GPTMessages2Chats(prompts)[0]);
+      const newTitle = getChatTitleFromChatMessage(GPTMessages2Chats(histories)[0]);
 
       // new chat
       if (completionChatId !== chatId) {
-        const newHistory: ChatHistoryItemType = {
-          chatId: completionChatId,
-          updateTime: new Date(),
-          title: newTitle,
-          appId,
-          top: false
-        };
-        pushHistory(newHistory);
-        if (controller.signal.reason !== 'leave') {
-          forbidRefresh.current = true;
-          router.replace({
-            query: {
-              ...router.query,
-              chatId: completionChatId
-            }
-          });
-        }
-      } else {
-        // update chat
-        const currentChat = histories.find((item) => item.chatId === chatId);
-        currentChat &&
-          updateHistory({
-            ...currentChat,
-            updateTime: new Date(),
-            title: newTitle,
-            teamId,
-            teamToken
-          });
+        onChangeChatId(completionChatId, true);
       }
+      onUpdateHistoryTitle({ chatId: completionChatId, newTitle });
+
       // update chat window
       setChatData((state) => ({
         ...state,
-        title: newTitle,
-        history: ChatBoxRef.current?.getChatHistories() || state.history
+        title: newTitle
       }));
 
-      return { responseText, responseData, isNewChat: forbidRefresh.current };
+      return { responseText, responseData, isNewChat: forbidLoadChat.current };
     },
     [
       chatId,
@@ -143,209 +136,111 @@ const OutLink = () => {
       appId,
       teamId,
       teamToken,
-      setChatData,
-      pushHistory,
-      router,
-      histories,
-      updateHistory
+      chatData.app.type,
+      onUpdateHistoryTitle,
+      forbidLoadChat,
+      onChangeChatId
     ]
   );
 
-  /* replace router query to last chat */
-  useEffect(() => {
-    if ((!chatId || !appId) && (lastChatId || lastChatAppId)) {
-      router.replace({
-        query: {
-          ...router.query,
-          chatId: chatId || lastChatId,
-          appId: appId || lastChatAppId
-        }
-      });
-    }
-  }, []);
-
-  // get chat app list
-  const loadApps = useCallback(async () => {
-    try {
-      const apps = await getMyTokensApps({ teamId, teamToken });
-
-      if (apps.length <= 0) {
-        toast({
-          status: 'error',
-          title: t('core.chat.You need to a chat app')
-        });
-        return [];
-      }
-
-      // if app id not exist, redirect to first app
-      if (!appId || !apps.find((item) => item._id === appId)) {
-        router.replace({
-          query: {
-            ...router.query,
-            appId: apps[0]?._id
-          }
-        });
-      }
-      return apps;
-    } catch (error: any) {
-      toast({
-        status: 'warning',
-        title: getErrText(error)
-      });
-    }
-    return [];
-  }, [appId, teamToken, router, teamId, t, toast]);
-  const { data: myApps = [], isLoading: isLoadingApps } = useQuery(['initApps', teamId], () => {
-    if (!teamId) {
-      toast({
-        status: 'error',
-        title: t('support.user.team.tag.Have not opened')
-      });
-      return;
-    }
-    return loadApps();
-  });
-
-  // load histories
-  useQuery(['loadHistories', appId], () => {
-    if (teamId && appId) {
-      return loadHistories({ teamId, appId, teamToken: teamToken });
-    }
-    return;
-  });
-
   // get chat app info
-  const loadChatInfo = useCallback(async () => {
-    try {
-      const res = await getTeamChatInfo({ teamId, appId, chatId, teamToken: teamToken });
+  const { loading: isLoading } = useRequest2(
+    async () => {
+      if (!appId || forbidLoadChat.current) return;
 
-      const history = res.history.map((item) => ({
-        ...item,
-        dataId: item.dataId || nanoid(),
-        status: ChatStatusEnum.finish
-      }));
+      const res = await getTeamChatInfo({ teamId, appId, chatId, teamToken });
+      setChatData(res);
 
-      setChatData({
-        ...res,
-        history
+      // reset chat records
+      resetVariables({
+        variables: res.variables
       });
-
-      // have records.
-      ChatBoxRef.current?.resetHistory(history);
-      ChatBoxRef.current?.resetVariables(res.variables);
-
-      if (res.history.length > 0) {
-        setTimeout(() => {
-          ChatBoxRef.current?.scrollToBottom('auto');
-        }, 500);
-      }
-    } catch (e: any) {
-      toast({
-        title: t('core.chat.Failed to initialize chat'),
-        status: 'error'
-      });
-      if (chatId) {
-        router.replace({
-          query: {
-            ...router.query,
-            chatId: ''
-          }
-        });
+    },
+    {
+      manual: false,
+      refreshDeps: [teamId, teamToken, appId, chatId],
+      onError(e: any) {
+        console.log(e);
+        if (chatId) {
+          onChangeChatId('');
+        }
+      },
+      onFinally() {
+        forbidLoadChat.current = false;
       }
     }
-    return null;
-  }, [teamId, appId, chatId, teamToken, setChatData, toast, t, router]);
-  const { isFetching } = useQuery(['init', teamId, appId, chatId], () => {
-    if (forbidRefresh.current) {
-      forbidRefresh.current = false;
-      return null;
-    }
-    if (teamId && appId) {
-      return loadChatInfo();
-    }
-    return null;
-  });
+  );
+
+  const RenderHistoryList = useMemo(() => {
+    const Children = (
+      <ChatHistorySlider
+        appId={appId}
+        appName={chatData.app.name}
+        appAvatar={chatData.app.avatar}
+        confirmClearText={t('common:core.chat.Confirm to clear history')}
+        onDelHistory={(e) => onDelHistory({ ...e, appId, teamId, teamToken })}
+        onClearHistory={() => {
+          onClearHistories({ appId, teamId, teamToken });
+        }}
+        onSetHistoryTop={(e) => {
+          onUpdateHistory({ ...e, teamId, teamToken, appId });
+        }}
+        onSetCustomTitle={async (e) => {
+          onUpdateHistory({
+            appId,
+            chatId: e.chatId,
+            customTitle: e.title,
+            teamId,
+            teamToken
+          });
+        }}
+      />
+    );
+
+    return isPc || !appId ? (
+      <SideBar>{Children}</SideBar>
+    ) : (
+      <Drawer
+        isOpen={isOpenSlider}
+        placement="left"
+        autoFocus={false}
+        size={'xs'}
+        onClose={onCloseSlider}
+      >
+        <DrawerOverlay backgroundColor={'rgba(255,255,255,0.5)'} />
+        <DrawerContent maxWidth={'75vw'}>{Children}</DrawerContent>
+      </Drawer>
+    );
+  }, [
+    appId,
+    chatData.app.avatar,
+    chatData.app.name,
+    isOpenSlider,
+    isPc,
+    onClearHistories,
+    onCloseSlider,
+    onDelHistory,
+    onUpdateHistory,
+    t,
+    teamId,
+    teamToken
+  ]);
+
+  const loading = isLoading;
 
   return (
-    <MyBox display={'flex'} h={'100%'} isLoading={isLoadingApps || isFetching}>
-      <Head>
-        <title>{chatData.app.name}</title>
-      </Head>
+    <Flex h={'100%'}>
+      <NextHead title={chatData.app.name} icon={chatData.app.avatar}></NextHead>
       {/* pc show myself apps */}
       {isPc && (
         <Box borderRight={theme.borders.base} w={'220px'} flexShrink={0}>
-          <SliderApps showExist={false} apps={myApps} activeAppId={appId} />
+          <SliderApps apps={myApps} activeAppId={appId} />
         </Box>
       )}
 
-      <PageContainer flex={'1 0 0'} w={0} p={[0, '16px']} position={'relative'}>
+      <PageContainer isLoading={loading} flex={'1 0 0'} w={0} p={[0, '16px']} position={'relative'}>
         <Flex h={'100%'} flexDirection={['column', 'row']} bg={'white'}>
-          {((children: React.ReactNode) => {
-            return isPc || !appId ? (
-              <SideBar>{children}</SideBar>
-            ) : (
-              <Drawer
-                isOpen={isOpenSlider}
-                placement="left"
-                autoFocus={false}
-                size={'xs'}
-                onClose={onCloseSlider}
-              >
-                <DrawerOverlay backgroundColor={'rgba(255,255,255,0.5)'} />
-                <DrawerContent maxWidth={'250px'}>{children}</DrawerContent>
-              </Drawer>
-            );
-          })(
-            <ChatHistorySlider
-              appId={appId}
-              apps={myApps}
-              appName={chatData.app.name}
-              appAvatar={chatData.app.avatar}
-              activeChatId={chatId}
-              confirmClearText={t('core.chat.Confirm to clear history')}
-              onClose={onCloseSlider}
-              history={histories.map((item, i) => ({
-                id: item.chatId,
-                title: item.title,
-                customTitle: item.customTitle,
-                top: item.top
-              }))}
-              onChangeChat={(chatId) => {
-                router.replace({
-                  query: {
-                    ...router.query,
-                    chatId: chatId || ''
-                  }
-                });
-                if (!isPc) {
-                  onCloseSlider();
-                }
-              }}
-              onDelHistory={(e) => delOneHistory({ ...e, appId, teamId, teamToken })}
-              onClearHistory={() => {
-                clearHistories({ appId, teamId, teamToken });
-                router.replace({
-                  query: {
-                    ...router.query,
-                    chatId: ''
-                  }
-                });
-              }}
-              onSetHistoryTop={(e) => {
-                updateHistory({ ...e, teamId, teamToken, appId });
-              }}
-              onSetCustomTitle={async (e) => {
-                updateHistory({
-                  appId,
-                  chatId: e.chatId,
-                  title: e.title,
-                  customTitle: e.title,
-                  teamId,
-                  teamToken
-                });
-              }}
-            />
-          )}
+          {RenderHistoryList}
           {/* chat container */}
           <Flex
             position={'relative'}
@@ -356,46 +251,115 @@ const OutLink = () => {
           >
             {/* header */}
             <ChatHeader
-              appAvatar={chatData.app.avatar}
-              appName={chatData.app.name}
-              history={chatData.history}
-              onOpenSlider={onOpenSlider}
+              totalRecordsCount={totalRecordsCount}
+              apps={myApps}
+              chatData={chatData}
+              history={chatRecords}
               showHistory
             />
             {/* chat box */}
             <Box flex={1}>
-              <ChatBox
-                active={!!chatData.app.name}
-                ref={ChatBoxRef}
-                appAvatar={chatData.app.avatar}
-                userAvatar={chatData.userAvatar}
-                chatConfig={chatData.app?.chatConfig}
-                showFileSelector={checkChatSupportSelectFileByChatModels(chatData.app.chatModels)}
-                feedbackType={'user'}
-                onUpdateVariable={(e) => {}}
-                onStartChat={startChat}
-                onDelMessage={(e) =>
-                  delOneHistoryItem({ ...e, appId: chatData.appId, chatId, teamId, teamToken })
-                }
-                appId={chatData.appId}
-                chatId={chatId}
-                teamId={teamId}
-                teamToken={teamToken}
-              />
+              {chatData.app.type === AppTypeEnum.plugin ? (
+                <CustomPluginRunBox
+                  pluginInputs={chatData.app.pluginInputs}
+                  variablesForm={variablesForm}
+                  histories={chatRecords}
+                  setHistories={setChatRecords}
+                  appId={chatData.appId}
+                  tab={pluginRunTab}
+                  setTab={setPluginRunTab}
+                  onNewChat={() => onChangeChatId(getNanoid())}
+                  onStartChat={startChat}
+                />
+              ) : (
+                <ChatBox
+                  ref={ChatBoxRef}
+                  ScrollData={ScrollData}
+                  chatHistories={chatRecords}
+                  setChatHistories={setChatRecords}
+                  variablesForm={variablesForm}
+                  appAvatar={chatData.app.avatar}
+                  userAvatar={chatData.userAvatar}
+                  chatConfig={chatData.app?.chatConfig}
+                  feedbackType={'user'}
+                  onStartChat={startChat}
+                  onDelMessage={({ contentId }) =>
+                    delChatRecordById({
+                      contentId,
+                      appId: chatData.appId,
+                      chatId,
+                      teamId,
+                      teamToken
+                    })
+                  }
+                  appId={chatData.appId}
+                  chatId={chatId}
+                  teamId={teamId}
+                  teamToken={teamToken}
+                />
+              )}
             </Box>
           </Flex>
         </Flex>
       </PageContainer>
-    </MyBox>
+    </Flex>
+  );
+};
+
+const Render = (props: Props) => {
+  const { teamId, appId, teamToken } = props;
+  const { t } = useTranslation();
+  const { toast } = useToast();
+  const router = useRouter();
+
+  const { data: myApps = [], runAsync: loadMyApps } = useRequest2(
+    async () => {
+      if (teamId && teamToken) {
+        return getMyTokensApps({ teamId, teamToken });
+      }
+      return [];
+    },
+    {
+      manual: false
+    }
+  );
+
+  // 初始化聊天框
+  useEffect(() => {
+    (async () => {
+      if (appId || myApps.length === 0) return;
+
+      router.replace({
+        query: {
+          ...router.query,
+          appId: myApps[0]._id,
+          chatId: ''
+        }
+      });
+    })();
+  }, [appId, loadMyApps, myApps, router, t, toast]);
+
+  const contextParams = useMemo(() => {
+    return { teamId, appId, teamToken };
+  }, [teamId, appId, teamToken]);
+
+  return (
+    <ChatContextProvider params={contextParams}>
+      <Chat {...props} myApps={myApps} />
+    </ChatContextProvider>
   );
 };
 
 export async function getServerSideProps(context: any) {
   return {
     props: {
-      ...(await serviceSideProps(context, ['file']))
+      appId: context?.query?.appId || '',
+      chatId: context?.query?.chatId || '',
+      teamId: context?.query?.teamId || '',
+      teamToken: context?.query?.teamToken || '',
+      ...(await serviceSideProps(context, ['file', 'app', 'chat', 'workflow']))
     }
   };
 }
 
-export default OutLink;
+export default Render;

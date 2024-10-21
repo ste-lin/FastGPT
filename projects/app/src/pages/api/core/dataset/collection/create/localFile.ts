@@ -1,8 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
-import { jsonRes } from '@fastgpt/service/common/response';
 import { uploadFile } from '@fastgpt/service/common/file/gridfs/controller';
 import { getUploadModel } from '@fastgpt/service/common/file/multer';
-import { authDataset } from '@fastgpt/service/support/permission/auth/dataset';
+import { authDataset } from '@fastgpt/service/support/permission/dataset/auth';
 import { FileCreateDatasetCollectionParams } from '@fastgpt/global/core/dataset/api';
 import { removeFilesByPaths } from '@fastgpt/service/common/file/utils';
 import { createOneCollection } from '@fastgpt/service/core/dataset/collection/controller';
@@ -23,17 +22,17 @@ import { mongoSessionRun } from '@fastgpt/service/common/mongo/sessionRun';
 import { MongoImage } from '@fastgpt/service/common/file/image/schema';
 import { readRawTextByLocalFile } from '@fastgpt/service/common/file/read/utils';
 import { NextAPI } from '@/service/middleware/entry';
+import { WritePermissionVal } from '@fastgpt/global/support/permission/constant';
+import { CreateCollectionResponse } from '@/global/core/dataset/api';
 
-async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
-  /**
-   * Creates the multer uploader
-   */
-  const upload = getUploadModel({
-    maxSize: (global.feConfigs?.uploadFileMaxSize || 500) * 1024 * 1024
-  });
+async function handler(req: NextApiRequest, res: NextApiResponse<any>): CreateCollectionResponse {
   let filePaths: string[] = [];
 
   try {
+    // Create multer uploader
+    const upload = getUploadModel({
+      maxSize: global.feConfigs?.uploadFileMaxSize
+    });
     const { file, data, bucketName } = await upload.doUpload<FileCreateDatasetCollectionParams>(
       req,
       res,
@@ -49,7 +48,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
       req,
       authToken: true,
       authApiKey: true,
-      per: 'w',
+      per: WritePermissionVal,
       datasetId: data.datasetId
     });
 
@@ -168,9 +167,7 @@ async function handler(req: NextApiRequest, res: NextApiResponse<any>) {
       };
     });
 
-    jsonRes(res, {
-      data: { collectionId, results: insertResults }
-    });
+    return { collectionId, results: insertResults };
   } catch (error) {
     removeFilesByPaths(filePaths);
 

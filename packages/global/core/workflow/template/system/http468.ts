@@ -3,36 +3,40 @@ import {
   FlowNodeOutputTypeEnum,
   FlowNodeTypeEnum
 } from '../../node/constant';
-import { FlowNodeTemplateType } from '../../type/index.d';
+import { FlowNodeTemplateType } from '../../type/node.d';
 import {
   WorkflowIOValueTypeEnum,
   NodeInputKeyEnum,
   NodeOutputKeyEnum,
-  FlowNodeTemplateTypeEnum
+  FlowNodeTemplateTypeEnum,
+  ContentTypes
 } from '../../constants';
 import { Input_Template_DynamicInput } from '../input';
 import { Output_Template_AddOutput } from '../output';
 import { getHandleConfig } from '../utils';
+import { i18nT } from '../../../../../web/i18n/utils';
 
-export const HttpModule468: FlowNodeTemplateType = {
+export const HttpNode468: FlowNodeTemplateType = {
   id: FlowNodeTypeEnum.httpRequest468,
-  templateType: FlowNodeTemplateTypeEnum.externalCall,
+  templateType: FlowNodeTemplateTypeEnum.tools,
   flowNodeType: FlowNodeTypeEnum.httpRequest468,
   sourceHandle: getHandleConfig(true, true, true, true),
   targetHandle: getHandleConfig(true, true, true, true),
-  avatar: '/imgs/workflow/http.png',
-  name: 'HTTP 请求',
-  intro: '可以发出一个 HTTP 请求，实现更为复杂的操作（联网搜索、数据库查询等）',
+  avatar: 'core/workflow/template/httpRequest',
+  name: i18nT('workflow:http_request'),
+  intro: i18nT('workflow:intro_http_request'),
   showStatus: true,
   isTool: true,
+  courseUrl: '/docs/workflow/modules/http/',
   version: '481',
   inputs: [
     {
       ...Input_Template_DynamicInput,
-      description: 'core.module.input.description.HTTP Dynamic Input',
-      editField: {
-        key: true,
-        valueType: true
+      description: i18nT('common:core.module.input.description.HTTP Dynamic Input'),
+      customInputConfig: {
+        selectValueTypeList: Object.values(WorkflowIOValueTypeEnum),
+        showDescription: false,
+        showDefaultValue: true
       }
     },
     {
@@ -44,11 +48,21 @@ export const HttpModule468: FlowNodeTemplateType = {
       required: true
     },
     {
+      key: NodeInputKeyEnum.httpTimeout,
+      renderTypeList: [FlowNodeInputTypeEnum.custom],
+      valueType: WorkflowIOValueTypeEnum.number,
+      label: '',
+      value: 30,
+      min: 5,
+      max: 600,
+      required: true
+    },
+    {
       key: NodeInputKeyEnum.httpReqUrl,
       renderTypeList: [FlowNodeInputTypeEnum.hidden],
       valueType: WorkflowIOValueTypeEnum.string,
       label: '',
-      description: 'core.module.input.description.Http Request Url',
+      description: i18nT('common:core.module.input.description.Http Request Url'),
       placeholder: 'https://api.ai.com/getInventory',
       required: false
     },
@@ -58,8 +72,8 @@ export const HttpModule468: FlowNodeTemplateType = {
       valueType: WorkflowIOValueTypeEnum.any,
       value: [],
       label: '',
-      description: 'core.module.input.description.Http Request Header',
-      placeholder: 'core.module.input.description.Http Request Header',
+      description: i18nT('common:core.module.input.description.Http Request Header'),
+      placeholder: i18nT('common:core.module.input.description.Http Request Header'),
       required: false
     },
     {
@@ -70,6 +84,7 @@ export const HttpModule468: FlowNodeTemplateType = {
       label: '',
       required: false
     },
+    // json body data
     {
       key: NodeInputKeyEnum.httpJsonBody,
       renderTypeList: [FlowNodeInputTypeEnum.hidden],
@@ -77,24 +92,44 @@ export const HttpModule468: FlowNodeTemplateType = {
       value: '',
       label: '',
       required: false
+    },
+    // form body data
+    {
+      key: NodeInputKeyEnum.httpFormBody,
+      renderTypeList: [FlowNodeInputTypeEnum.hidden],
+      valueType: WorkflowIOValueTypeEnum.any,
+      value: [],
+      label: '',
+      required: false
+    },
+    // body data type
+    {
+      key: NodeInputKeyEnum.httpContentType,
+      renderTypeList: [FlowNodeInputTypeEnum.hidden],
+      valueType: WorkflowIOValueTypeEnum.string,
+      value: ContentTypes.json,
+      label: '',
+      required: false
     }
   ],
   outputs: [
-    Output_Template_AddOutput,
+    {
+      ...Output_Template_AddOutput
+    },
     {
       id: NodeOutputKeyEnum.error,
       key: NodeOutputKeyEnum.error,
-      label: '请求错误',
-      description: 'HTTP请求错误信息，成功时返回空',
+      label: i18nT('workflow:request_error'),
+      description: i18nT('workflow:http_request_error_info'),
       valueType: WorkflowIOValueTypeEnum.object,
       type: FlowNodeOutputTypeEnum.static
     },
     {
       id: NodeOutputKeyEnum.httpRawResponse,
       key: NodeOutputKeyEnum.httpRawResponse,
-      label: '原始响应',
       required: true,
-      description: 'HTTP请求的原始响应。只能接受字符串或JSON类型响应数据。',
+      label: i18nT('workflow:raw_response'),
+      description: i18nT('workflow:http_raw_response_description'),
       valueType: WorkflowIOValueTypeEnum.any,
       type: FlowNodeOutputTypeEnum.static
     }

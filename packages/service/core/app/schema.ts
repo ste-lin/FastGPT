@@ -1,12 +1,12 @@
-import { AppTypeMap } from '@fastgpt/global/core/app/constants';
-import { connectionMongo, type Model } from '../../common/mongo';
-const { Schema, model, models } = connectionMongo;
+import { AppTypeEnum } from '@fastgpt/global/core/app/constants';
+import { Schema, getMongoModel } from '../../common/mongo';
 import type { AppSchema as AppType } from '@fastgpt/global/core/app/type.d';
-import { PermissionTypeEnum, PermissionTypeMap } from '@fastgpt/global/support/permission/constant';
 import {
   TeamCollectionName,
   TeamMemberCollectionName
 } from '@fastgpt/global/support/user/team/constant';
+import { AppDefaultPermissionVal } from '@fastgpt/global/support/permission/app/constant';
+import { getPermissionSchema } from '@fastgpt/global/support/permission/utils';
 
 export const AppCollectionName = 'apps';
 
@@ -17,10 +17,18 @@ export const chatConfigType = {
   ttsConfig: Object,
   whisperConfig: Object,
   scheduledTriggerConfig: Object,
-  chatInputGuide: Object
+  chatInputGuide: Object,
+  fileSelectConfig: Object,
+  instruction: String
 };
 
+// schema
 const AppSchema = new Schema({
+  parentId: {
+    type: Schema.Types.ObjectId,
+    ref: AppCollectionName,
+    default: null
+  },
   teamId: {
     type: Schema.Types.ObjectId,
     ref: TeamCollectionName,
@@ -37,8 +45,8 @@ const AppSchema = new Schema({
   },
   type: {
     type: String,
-    default: 'advanced',
-    enum: Object.keys(AppTypeMap)
+    default: AppTypeEnum.workflow,
+    enum: Object.values(AppTypeEnum)
   },
   version: {
     type: String,
@@ -52,22 +60,18 @@ const AppSchema = new Schema({
     type: String,
     default: ''
   },
+
   updateTime: {
     type: Date,
     default: () => new Date()
   },
 
   // role and auth
-  permission: {
-    type: String,
-    enum: Object.keys(PermissionTypeMap),
-    default: PermissionTypeEnum.private
-  },
   teamTags: {
     type: [String]
   },
 
-  // tmp store
+  // save app(Not publish)
   modules: {
     type: Array,
     default: []
@@ -77,8 +81,16 @@ const AppSchema = new Schema({
     default: []
   },
   chatConfig: {
-    type: chatConfigType,
-    default: {}
+    type: chatConfigType
+  },
+  // plugin config
+  pluginData: {
+    type: {
+      nodeVersion: String,
+      pluginUniId: String,
+      apiSchemaStr: String, // http plugin
+      customHeaders: String // http plugin
+    }
   },
 
   scheduledTriggerConfig: {
@@ -98,18 +110,13 @@ const AppSchema = new Schema({
 
   inited: {
     type: Boolean
-  }
+  },
+
+  ...getPermissionSchema(AppDefaultPermissionVal)
 });
 
-try {
-  AppSchema.index({ updateTime: -1 });
-  AppSchema.index({ teamId: 1 });
-  AppSchema.index({ scheduledTriggerConfig: 1, intervalNextTime: -1 });
-} catch (error) {
-  console.log(error);
-}
+AppSchema.index({ teamId: 1, updateTime: -1 });
+AppSchema.index({ teamId: 1, type: 1 });
+AppSchema.index({ scheduledTriggerConfig: 1, intervalNextTime: -1 });
 
-export const MongoApp: Model<AppType> =
-  models[AppCollectionName] || model(AppCollectionName, AppSchema);
-
-MongoApp.syncIndexes();
+export const MongoApp = getMongoModel<AppType>(AppCollectionName, AppSchema);

@@ -1,20 +1,22 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import 'katex/dist/katex.min.css';
-import RemarkMath from 'remark-math';
-import RemarkBreaks from 'remark-breaks';
-import RehypeKatex from 'rehype-katex';
-import RemarkGfm from 'remark-gfm';
+import RemarkMath from 'remark-math'; // Math syntax
+import RemarkBreaks from 'remark-breaks'; // Line break
+import RehypeKatex from 'rehype-katex'; // Math render
+import RemarkGfm from 'remark-gfm'; // Special markdown syntax
+import RehypeExternalLinks from 'rehype-external-links';
 
 import styles from './index.module.scss';
 import dynamic from 'next/dynamic';
 
-import { Link, Button } from '@chakra-ui/react';
-import MyTooltip from '../MyTooltip';
+import { Link, Button, Box } from '@chakra-ui/react';
+import MyTooltip from '@fastgpt/web/components/common/MyTooltip';
 import { useTranslation } from 'next-i18next';
 import { EventNameEnum, eventBus } from '@/web/common/utils/eventbus';
 import MyIcon from '@fastgpt/web/components/common/Icon';
 import { MARKDOWN_QUOTE_SIGN } from '@fastgpt/global/core/chat/constants';
+import { CodeClassNameEnum } from './utils';
 
 const CodeLight = dynamic(() => import('./CodeLight'), { ssr: false });
 const MermaidCodeBlock = dynamic(() => import('./img/MermaidCodeBlock'), { ssr: false });
@@ -24,92 +26,97 @@ const EChartsCodeBlock = dynamic(() => import('./img/EChartsCodeBlock'), { ssr: 
 const ChatGuide = dynamic(() => import('./chat/Guide'), { ssr: false });
 const QuestionGuide = dynamic(() => import('./chat/QuestionGuide'), { ssr: false });
 
-export enum CodeClassName {
-  guide = 'guide',
-  questionGuide = 'questionGuide',
-  mermaid = 'mermaid',
-  echarts = 'echarts',
-  quote = 'quote',
-  files = 'files'
-}
-
 const Markdown = ({
   source = '',
-  showAnimation = false
+  showAnimation = false,
+  isDisabled = false
 }: {
   source?: string;
   showAnimation?: boolean;
+  isDisabled?: boolean;
 }) => {
   const components = useMemo<any>(
     () => ({
       img: Image,
-      pre: 'div',
-      p: (pProps: any) => <p {...pProps} dir="auto" />,
+      pre: RewritePre,
       code: Code,
       a: A
     }),
     []
   );
 
-  const formatSource = source
-    // .replace(/\\n/g, '\n')
-    .replace(/(http[s]?:\/\/[^\s，。]+)([。，])/g, '$1 $2')
-    .replace(/\n*(\[QUOTE SIGN\]\(.*\))/g, '$1');
+  const formatSource = useMemo(() => {
+    const formatSource = source
+      .replace(
+        /([\u4e00-\u9fa5\u3000-\u303f])([a-zA-Z0-9])|([a-zA-Z0-9])([\u4e00-\u9fa5\u3000-\u303f])/g,
+        '$1$3 $2$4'
+      ) // Chinese and english chars separated by space
+      .replace(/\n*(\[QUOTE SIGN\]\(.*\))/g, '$1');
+
+    return formatSource;
+  }, [source]);
+
+  const urlTransform = useCallback((val: string) => {
+    return val;
+  }, []);
 
   return (
-    <ReactMarkdown
-      className={`markdown ${styles.markdown}
+    <Box position={'relative'}>
+      <ReactMarkdown
+        className={`markdown ${styles.markdown}
       ${showAnimation ? `${formatSource ? styles.waitingAnimation : styles.animation}` : ''}
     `}
-      remarkPlugins={[RemarkMath, [RemarkGfm, { singleTilde: false }], RemarkBreaks]}
-      rehypePlugins={[RehypeKatex]}
-      components={components}
-      linkTarget={'_blank'}
-    >
-      {formatSource}
-    </ReactMarkdown>
+        remarkPlugins={[RemarkMath, [RemarkGfm, { singleTilde: false }], RemarkBreaks]}
+        rehypePlugins={[RehypeKatex, [RehypeExternalLinks, { target: '_blank' }]]}
+        components={components}
+        urlTransform={urlTransform}
+      >
+        {formatSource}
+      </ReactMarkdown>
+      {isDisabled && <Box position={'absolute'} top={0} right={0} left={0} bottom={0} />}
+    </Box>
   );
 };
 
 export default React.memo(Markdown);
 
-const Code = React.memo(function Code(e: any) {
-  const { inline, className, children } = e;
-
+/* Custom dom */
+function Code(e: any) {
+  const { className, codeBlock, children } = e;
   const match = /language-(\w+)/.exec(className || '');
   const codeType = match?.[1];
 
   const strChildren = String(children);
 
   const Component = useMemo(() => {
-    if (codeType === CodeClassName.mermaid) {
+    if (codeType === CodeClassNameEnum.mermaid) {
       return <MermaidCodeBlock code={strChildren} />;
     }
-
-    if (codeType === CodeClassName.guide) {
+    if (codeType === CodeClassNameEnum.guide) {
       return <ChatGuide text={strChildren} />;
     }
-    if (codeType === CodeClassName.questionGuide) {
+    if (codeType === CodeClassNameEnum.questionGuide) {
       return <QuestionGuide text={strChildren} />;
     }
-    if (codeType === CodeClassName.echarts) {
+    if (codeType === CodeClassNameEnum.echarts) {
       return <EChartsCodeBlock code={strChildren} />;
     }
 
     return (
-      <CodeLight className={className} inline={inline} match={match}>
+      <CodeLight className={className} codeBlock={codeBlock} match={match}>
         {children}
       </CodeLight>
     );
-  }, [codeType, className, inline, match, children, strChildren]);
+  }, [codeType, className, codeBlock, match, children, strChildren]);
 
   return Component;
-});
+}
 
-const Image = React.memo(function Image({ src }: { src?: string }) {
+function Image({ src }: { src?: string }) {
   return <MdImage src={src} />;
-});
-const A = React.memo(function A({ children, ...props }: any) {
+}
+
+function A({ children, ...props }: any) {
   const { t } = useTranslation();
 
   // empty href link
@@ -117,7 +124,7 @@ const A = React.memo(function A({ children, ...props }: any) {
     const text = useMemo(() => String(children), [children]);
 
     return (
-      <MyTooltip label={t('core.chat.markdown.Quick Question')}>
+      <MyTooltip label={t('common:core.chat.markdown.Quick Question')}>
         <Button
           variant={'whitePrimary'}
           size={'xs'}
@@ -154,4 +161,16 @@ const A = React.memo(function A({ children, ...props }: any) {
   }
 
   return <Link {...props}>{children}</Link>;
-});
+}
+
+function RewritePre({ children }: any) {
+  const modifiedChildren = React.Children.map(children, (child) => {
+    if (React.isValidElement(child)) {
+      // @ts-ignore
+      return React.cloneElement(child, { codeBlock: true });
+    }
+    return child;
+  });
+
+  return <>{modifiedChildren}</>;
+}

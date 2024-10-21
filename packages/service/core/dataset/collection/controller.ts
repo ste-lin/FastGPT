@@ -1,7 +1,4 @@
-import {
-  TrainingModeEnum,
-  DatasetCollectionTypeEnum
-} from '@fastgpt/global/core/dataset/constants';
+import { TrainingModeEnum } from '@fastgpt/global/core/dataset/constants';
 import type { CreateDatasetCollectionParams } from '@fastgpt/global/core/dataset/api.d';
 import { MongoDatasetCollection } from './schema';
 import {
@@ -15,6 +12,7 @@ import { deleteDatasetDataVector } from '../../../common/vectorStore/controller'
 import { delFileByFileIdList } from '../../../common/file/gridfs/controller';
 import { BucketNameEnum } from '@fastgpt/global/common/file/constants';
 import { ClientSession } from '../../../common/mongo';
+import { createOrGetCollectionTags } from './utils';
 
 export async function createOneCollection({
   teamId,
@@ -39,6 +37,7 @@ export async function createOneCollection({
   rawTextLength,
   metadata = {},
   session,
+  tags,
   ...props
 }: CreateDatasetCollectionParams & {
   teamId: string;
@@ -46,6 +45,10 @@ export async function createOneCollection({
   [key: string]: any;
   session?: ClientSession;
 }) {
+  // Create collection tags
+  const collectionTags = await createOrGetCollectionTags({ tags, teamId, datasetId, session });
+
+  // Create collection
   const [collection] = await MongoDatasetCollection.create(
     [
       {
@@ -69,58 +72,14 @@ export async function createOneCollection({
 
         rawTextLength,
         hashRawText,
-        metadata
+        metadata,
+        tags: collectionTags
       }
     ],
     { session }
   );
-
-  // create default collection
-  if (type === DatasetCollectionTypeEnum.folder) {
-    await createDefaultCollection({
-      datasetId,
-      parentId: collection._id,
-      teamId,
-      tmbId,
-      session
-    });
-  }
 
   return collection;
-}
-
-// create default collection
-export function createDefaultCollection({
-  name = '手动录入',
-  datasetId,
-  parentId,
-  teamId,
-  tmbId,
-  session
-}: {
-  name?: '手动录入' | '手动标注';
-  datasetId: string;
-  parentId?: string;
-  teamId: string;
-  tmbId: string;
-  session?: ClientSession;
-}) {
-  return MongoDatasetCollection.create(
-    [
-      {
-        name,
-        teamId,
-        tmbId,
-        datasetId,
-        parentId,
-        type: DatasetCollectionTypeEnum.virtual,
-        trainingType: TrainingModeEnum.chunk,
-        chunkSize: 0,
-        updateTime: new Date('2099')
-      }
-    ],
-    { session }
-  );
 }
 
 /* delete collection related images/files */
@@ -142,16 +101,16 @@ export const delCollectionRelatedSource = async ({
     .map((item) => item?.metadata?.relatedImgId || '')
     .filter(Boolean);
 
+  // delete files
+  await delFileByFileIdList({
+    bucketName: BucketNameEnum.dataset,
+    fileIdList
+  });
   // delete images
   await delImgByRelatedId({
     teamId,
     relateIds: relatedImageIds,
     session
-  });
-  // delete files
-  await delFileByFileIdList({
-    bucketName: BucketNameEnum.dataset,
-    fileIdList
   });
 };
 /**
@@ -182,14 +141,16 @@ export async function delCollectionAndRelatedSources({
   );
   const collectionIds = collections.map((item) => String(item._id));
 
-  await delCollectionRelatedSource({ collections, session });
-
   // delete training data
   await MongoDatasetTraining.deleteMany({
     teamId,
     datasetIds: { $in: datasetIds },
     collectionId: { $in: collectionIds }
   });
+
+  /* file and imgs */
+  await delCollectionRelatedSource({ collections, session });
+
   // delete dataset.datas
   await MongoDatasetData.deleteMany(
     { teamId, datasetIds: { $in: datasetIds }, collectionId: { $in: collectionIds } },
@@ -199,6 +160,7 @@ export async function delCollectionAndRelatedSources({
   // delete collections
   await MongoDatasetCollection.deleteMany(
     {
+      teamId,
       _id: { $in: collectionIds }
     },
     { session }

@@ -3,30 +3,32 @@ import { FlowNodeTypeEnum } from '../workflow/node/constant';
 import { NodeInputKeyEnum, FlowNodeTemplateTypeEnum } from '../workflow/constants';
 import type { FlowNodeInputItemType } from '../workflow/type/io.d';
 import { getAppChatConfig } from '../workflow/utils';
-import { StoreNodeItemType } from '../workflow/type';
+import { StoreNodeItemType } from '../workflow/type/node';
 import { DatasetSearchModeEnum } from '../dataset/constants';
 
-export const getDefaultAppForm = (): AppSimpleEditFormType => ({
-  aiSettings: {
-    model: 'gpt-3.5-turbo',
-    systemPrompt: '',
-    temperature: 0,
-    isResponseAnswerText: true,
-    maxHistories: 6,
-    maxToken: 4000
-  },
-  dataset: {
-    datasets: [],
-    similarity: 0.4,
-    limit: 1500,
-    searchMode: DatasetSearchModeEnum.embedding,
-    usingReRank: false,
-    datasetSearchUsingExtensionQuery: true,
-    datasetSearchExtensionBg: ''
-  },
-  selectedTools: [],
-  chatConfig: {}
-});
+export const getDefaultAppForm = (): AppSimpleEditFormType => {
+  return {
+    aiSettings: {
+      model: 'gpt-4o-mini',
+      systemPrompt: '',
+      temperature: 0,
+      isResponseAnswerText: true,
+      maxHistories: 6,
+      maxToken: 4000
+    },
+    dataset: {
+      datasets: [],
+      similarity: 0.4,
+      limit: 1500,
+      searchMode: DatasetSearchModeEnum.embedding,
+      usingReRank: false,
+      datasetSearchUsingExtensionQuery: true,
+      datasetSearchExtensionBg: ''
+    },
+    selectedTools: [],
+    chatConfig: {}
+  };
+};
 
 /* format app nodes to edit form */
 export const appWorkflow2Form = ({
@@ -95,18 +97,21 @@ export const appWorkflow2Form = ({
         node.inputs,
         NodeInputKeyEnum.datasetSearchExtensionBg
       );
-    } else if (node.flowNodeType === FlowNodeTypeEnum.pluginModule) {
+    } else if (
+      node.flowNodeType === FlowNodeTypeEnum.pluginModule ||
+      node.flowNodeType === FlowNodeTypeEnum.appModule
+    ) {
       if (!node.pluginId) return;
 
       defaultAppForm.selectedTools.push({
-        id: node.pluginId,
+        id: node.nodeId,
         pluginId: node.pluginId,
         name: node.name,
         avatar: node.avatar,
         intro: node.intro || '',
         flowNodeType: node.flowNodeType,
         showStatus: node.showStatus,
-        version: '481',
+        version: node.version,
         inputs: node.inputs,
         outputs: node.outputs,
         templateType: FlowNodeTemplateTypeEnum.other

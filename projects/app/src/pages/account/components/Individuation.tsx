@@ -7,16 +7,13 @@ import { UserType } from '@fastgpt/global/support/user/type';
 import { useToast } from '@fastgpt/web/hooks/useToast';
 import { useForm } from 'react-hook-form';
 import { UserUpdateParams } from '@/types/user';
-import { langMap, setLngStore } from '@/web/common/utils/i18n';
-import { useRouter } from 'next/router';
-import MySelect from '@fastgpt/web/components/common/MySelect';
 import TimezoneSelect from '@fastgpt/web/components/common/MySelect/TimezoneSelect';
+import I18nLngSelector from '@/components/Select/I18nLngSelector';
 
 const Individuation = () => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { userInfo, updateUserInfo } = useUserStore();
   const { toast } = useToast();
-  const router = useRouter();
 
   const { reset } = useForm<UserUpdateParams>({
     defaultValues: userInfo as UserType
@@ -29,7 +26,7 @@ const Individuation = () => {
       });
       reset(data);
       toast({
-        title: t('dataset.data.Update Success Tip'),
+        title: t('common:dataset.data.Update Success Tip'),
         status: 'success'
       });
     },
@@ -38,37 +35,20 @@ const Individuation = () => {
 
   return (
     <Box py={[3, '28px']} px={['5vw', '64px']}>
-      <Flex alignItems={'center'} fontSize={'xl'} h={'30px'}>
+      <Flex alignItems={'center'} fontSize={'lg'} h={'30px'}>
         <MyIcon mr={2} name={'support/user/individuation'} w={'20px'} />
-        {t('support.account.Individuation')}
+        {t('common:support.account.Individuation')}
       </Flex>
 
-      <Card mt={6} px={[3, 10]} py={[3, 7]}>
+      <Card mt={6} px={[3, 10]} py={[3, 7]} fontSize={'sm'}>
         <Flex alignItems={'center'} w={['85%', '350px']}>
-          <Box flex={'0 0 80px'}>{t('user.Language')}:&nbsp;</Box>
+          <Box flex={'0 0 80px'}>{t('common:user.Language')}:&nbsp;</Box>
           <Box flex={'1 0 0'}>
-            <MySelect
-              value={i18n.language}
-              list={Object.entries(langMap).map(([key, lang]) => ({
-                label: lang.label,
-                value: key
-              }))}
-              onchange={(val: any) => {
-                const lang = val;
-                setLngStore(lang);
-                router.replace(
-                  {
-                    query: router.query
-                  },
-                  router.asPath,
-                  { locale: lang }
-                );
-              }}
-            />
+            <I18nLngSelector />
           </Box>
         </Flex>
         <Flex mt={6} alignItems={'center'} w={['85%', '350px']}>
-          <Box flex={'0 0 80px'}>{t('user.Timezone')}:&nbsp;</Box>
+          <Box flex={'0 0 80px'}>{t('common:user.Timezone')}:&nbsp;</Box>
           <TimezoneSelect
             value={userInfo?.timezone}
             onChange={(e) => {

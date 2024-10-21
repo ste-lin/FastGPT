@@ -8,6 +8,8 @@ import type {
   DatasetCollectionItemType,
   DatasetItemType
 } from '@fastgpt/global/core/dataset/type.d';
+import { DatasetDefaultPermissionVal } from '@fastgpt/global/support/permission/dataset/constant';
+import { DatasetPermission } from '@fastgpt/global/support/permission/dataset/controller';
 
 export const defaultDatasetDetail: DatasetItemType = {
   _id: '',
@@ -21,11 +23,11 @@ export const defaultDatasetDetail: DatasetItemType = {
   name: '',
   intro: '',
   status: 'active',
-  permission: 'private',
-  isOwner: false,
-  canWrite: false,
+  permission: new DatasetPermission(),
   vectorModel: defaultVectorModels[0],
-  agentModel: defaultQAModels[0]
+  agentModel: defaultQAModels[0],
+  defaultPermission: DatasetDefaultPermissionVal,
+  inheritPermission: true
 };
 
 export const defaultCollectionDetail: DatasetCollectionItemType = {
@@ -44,20 +46,22 @@ export const defaultCollectionDetail: DatasetCollectionItemType = {
     name: '',
     intro: '',
     status: 'active',
-    permission: 'private',
     vectorModel: defaultVectorModels[0].model,
-    agentModel: defaultQAModels[0].model
+    agentModel: defaultQAModels[0].model,
+    defaultPermission: DatasetDefaultPermissionVal,
+    inheritPermission: true
   },
+  tags: [],
   parentId: '',
   name: '',
   type: DatasetCollectionTypeEnum.file,
   updateTime: new Date(),
-  canWrite: false,
   sourceName: '',
   sourceId: '',
   createTime: new Date(),
   trainingType: TrainingModeEnum.chunk,
-  chunkSize: 0
+  chunkSize: 0,
+  permission: new DatasetPermission()
 };
 
 export enum ImportProcessWayEnum {

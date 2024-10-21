@@ -1,5 +1,5 @@
 import { chats2GPTMessages } from '@fastgpt/global/core/chat/adapt';
-import { filterGPTMessageByMaxTokens } from '../../../chat/utils';
+import { filterGPTMessageByMaxTokens, loadRequestMessages } from '../../../chat/utils';
 import type { ChatItemType } from '@fastgpt/global/core/chat/type.d';
 import {
   countMessagesTokens,
@@ -7,10 +7,10 @@ import {
 } from '../../../../common/string/tiktoken/index';
 import { ChatItemValueTypeEnum, ChatRoleEnum } from '@fastgpt/global/core/chat/constants';
 import { getAIApi } from '../../../ai/config';
-import type { ContextExtractAgentItemType } from '@fastgpt/global/core/workflow/type/index.d';
+import type { ContextExtractAgentItemType } from '@fastgpt/global/core/workflow/template/system/contextExtract/type';
 import { NodeInputKeyEnum, NodeOutputKeyEnum } from '@fastgpt/global/core/workflow/constants';
 import { DispatchNodeResponseKeyEnum } from '@fastgpt/global/core/workflow/runtime/constants';
-import type { ModuleDispatchProps } from '@fastgpt/global/core/workflow/type/index.d';
+import type { ModuleDispatchProps } from '@fastgpt/global/core/workflow/runtime/type';
 import { Prompt_ExtractJson } from '@fastgpt/global/core/ai/prompt/agent';
 import { replaceVariable, sliceJsonStr } from '@fastgpt/global/common/string/tools';
 import { LLMModelItemType } from '@fastgpt/global/core/ai/model.d';
@@ -26,6 +26,7 @@ import {
 import { ChatCompletionRequestMessageRoleEnum } from '@fastgpt/global/core/ai/constants';
 import { DispatchNodeResultType } from '@fastgpt/global/core/workflow/runtime/type';
 import { chatValue2RuntimePrompt } from '@fastgpt/global/core/chat/adapt';
+import { llmCompletionsBodyFormat } from '../../../ai/utils';
 
 type Props = ModuleDispatchProps<{
   [NodeInputKeyEnum.history]?: ChatItemType[];
@@ -161,7 +162,7 @@ ${description ? `- ${description}` : ''}
 - 需要结合前面的对话内容，一起生成合适的参数。
 """
 
-本次输入内容: ${content}
+本次输入内容: """${content}"""
             `
           }
         }
@@ -173,6 +174,10 @@ ${description ? `- ${description}` : ''}
     messages: adaptMessages,
     maxTokens: extractModel.maxContext
   });
+  const requestMessages = await loadRequestMessages({
+    messages: filterMessages,
+    useVision: false
+  });
 
   const properties: Record<
     string,
@@ -183,7 +188,7 @@ ${description ? `- ${description}` : ''}
   > = {};
   extractKeys.forEach((item) => {
     properties[item.key] = {
-      type: 'string',
+      type: item.valueType || 'string',
       description: item.desc,
       ...(item.enum ? { enum: item.enum.split('\n') } : {})
     };
@@ -200,7 +205,7 @@ ${description ? `- ${description}` : ''}
   };
 
   return {
-    filterMessages,
+    filterMessages: requestMessages,
     agentFunction
   };
 };
@@ -222,18 +227,23 @@ const toolChoice = async (props: ActionProps) => {
     timeout: 480000
   });
 
-  const response = await ai.chat.completions.create({
-    model: extractModel.model,
-    temperature: 0,
-    messages: filterMessages,
-    tools,
-    tool_choice: { type: 'function', function: { name: agentFunName } }
-  });
+  const response = await ai.chat.completions.create(
+    llmCompletionsBodyFormat(
+      {
+        model: extractModel.model,
+        temperature: 0.01,
+        messages: filterMessages,
+        tools,
+        tool_choice: { type: 'function', function: { name: agentFunName } }
+      },
+      extractModel
+    )
+  );
 
   const arg: Record<string, any> = (() => {
     try {
       return json5.parse(
-        response?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments || '{}'
+        response?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments || ''
       );
     } catch (error) {
       console.log(agentFunction.parameters);
@@ -267,15 +277,20 @@ const functionCall = async (props: ActionProps) => {
     timeout: 480000
   });
 
-  const response = await ai.chat.completions.create({
-    model: extractModel.model,
-    temperature: 0,
-    messages: filterMessages,
-    function_call: {
-      name: agentFunName
-    },
-    functions
-  });
+  const response = await ai.chat.completions.create(
+    llmCompletionsBodyFormat(
+      {
+        model: extractModel.model,
+        temperature: 0.01,
+        messages: filterMessages,
+        function_call: {
+          name: agentFunName
+        },
+        functions
+      },
+      extractModel
+    )
+  );
 
   try {
     const arg = JSON.parse(response?.choices?.[0]?.message?.function_call?.arguments || '');
@@ -307,7 +322,7 @@ const completions = async ({
   extractModel,
   user,
   histories,
-  params: { content, extractKeys, description }
+  params: { content, extractKeys, description = 'No special requirements' }
 }: ActionProps) => {
   const messages: ChatItemType[] = [
     {
@@ -319,12 +334,16 @@ const completions = async ({
             content: replaceVariable(extractModel.customExtractPrompt || Prompt_ExtractJson, {
               description,
               json: extractKeys
-                .map(
-                  (item) =>
-                    `{"key":"${item.key}", "description":"${item.desc}"${
-                      item.enum ? `, "enum":"[${item.enum.split('\n')}]"` : ''
-                    }}`
-                )
+                .map((item) => {
+                  const valueType = item.valueType || 'string';
+                  if (valueType !== 'string' && valueType !== 'number') {
+                    item.enum = undefined;
+                  }
+
+                  return `{"type":${item.valueType || 'string'}, "key":"${item.key}", "description":"${item.desc}" ${
+                    item.enum ? `, "enum":"[${item.enum.split('\n')}]"` : ''
+                  }}`;
+                })
                 .join('\n'),
               text: `${histories.map((item) => `${item.obj}:${chatValue2RuntimePrompt(item.value).text}`).join('\n')}
 Human: ${content}`
@@ -334,17 +353,26 @@ Human: ${content}`
       ]
     }
   ];
+  const requestMessages = await loadRequestMessages({
+    messages: chats2GPTMessages({ messages, reserveId: false }),
+    useVision: false
+  });
 
   const ai = getAIApi({
     userKey: user.openaiAccount,
     timeout: 480000
   });
-  const data = await ai.chat.completions.create({
-    model: extractModel.model,
-    temperature: 0.01,
-    messages: chats2GPTMessages({ messages, reserveId: false }),
-    stream: false
-  });
+  const data = await ai.chat.completions.create(
+    llmCompletionsBodyFormat(
+      {
+        model: extractModel.model,
+        temperature: 0.01,
+        messages: requestMessages,
+        stream: false
+      },
+      extractModel
+    )
+  );
   const answer = data.choices?.[0].message?.content || '';
 
   // parse response
@@ -365,6 +393,7 @@ Human: ${content}`
       arg: json5.parse(jsonStr) as Record<string, any>
     };
   } catch (error) {
+    console.log('Extract error, ai answer:', answer);
     console.log(error);
     return {
       rawResponse: answer,

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   Menu,
   MenuList,
@@ -6,56 +6,84 @@ import {
   Box,
   useOutsideClick,
   MenuButton,
-  MenuItemProps
+  MenuItemProps,
+  PlacementWithLogical
 } from '@chakra-ui/react';
-import MyIcon from '../Icon';
+import MyDivider from '../MyDivider';
+import type { IconNameType } from '../Icon/type';
+import { useSystem } from '../../../hooks/useSystem';
+import Avatar from '../Avatar';
 
-type MenuItemType = 'primary' | 'danger';
+export type MenuItemType = 'primary' | 'danger';
 
 export type Props = {
   width?: number | string;
   offset?: [number, number];
   Button: React.ReactNode;
   trigger?: 'hover' | 'click';
+  iconSize?: string;
+  iconRadius?: string;
+
+  placement?: PlacementWithLogical;
   menuList: {
-    isActive?: boolean;
-    label: string | React.ReactNode;
-    icon?: string;
-    type?: MenuItemType;
-    onClick: () => any;
+    label?: string;
+    children: {
+      isActive?: boolean;
+      type?: MenuItemType;
+      icon?: IconNameType | string;
+      label: string | React.ReactNode;
+      description?: string;
+      onClick?: () => any;
+      menuItemStyles?: MenuItemProps;
+    }[];
   }[];
 };
 
 const MyMenu = ({
   width = 'auto',
   trigger = 'hover',
-  offset = [0, 5],
+  offset,
+  iconSize = '1rem',
   Button,
-  menuList
+  menuList,
+  iconRadius,
+  placement = 'bottom-start'
 }: Props) => {
   const typeMapStyle: Record<MenuItemType, MenuItemProps> = {
     primary: {
       _hover: {
         backgroundColor: 'primary.50',
         color: 'primary.600'
+      },
+      _focus: {
+        backgroundColor: 'primary.50',
+        color: 'primary.600'
+      },
+      _active: {
+        backgroundColor: 'primary.50',
+        color: 'primary.600'
       }
     },
     danger: {
+      color: 'red.600',
       _hover: {
-        color: 'red.600',
+        background: 'red.1'
+      },
+      _focus: {
+        background: 'red.1'
+      },
+      _active: {
         background: 'red.1'
       }
     }
   };
-  const menuItemStyles: MenuItemProps = {
-    borderRadius: 'sm',
-    py: 3,
-    display: 'flex',
-    alignItems: 'center'
-  };
+
+  const { isPc } = useSystem();
   const ref = useRef<HTMLDivElement>(null);
   const closeTimer = useRef<any>();
   const [isOpen, setIsOpen] = useState(false);
+
+  const formatTrigger = !isPc ? 'click' : trigger;
 
   useOutsideClick({
     ref: ref,
@@ -64,18 +92,33 @@ const MyMenu = ({
     }
   });
 
+  const computeOffset = useMemo<[number, number]>(() => {
+    if (offset) return offset;
+    if (typeof width === 'number') return [-width / 2, 5];
+    return [0, 5];
+  }, [offset]);
+
   return (
-    <Menu offset={offset} isOpen={isOpen} autoSelect={false} direction={'ltr'} isLazy>
+    <Menu
+      offset={computeOffset}
+      isOpen={isOpen}
+      autoSelect={false}
+      direction={'ltr'}
+      isLazy
+      lazyBehavior={'keepMounted'}
+      placement={placement}
+      computePositionOnMount
+    >
       <Box
         ref={ref}
         onMouseEnter={() => {
-          if (trigger === 'hover') {
+          if (formatTrigger === 'hover') {
             setIsOpen(true);
           }
           clearTimeout(closeTimer.current);
         }}
         onMouseLeave={() => {
-          if (trigger === 'hover') {
+          if (formatTrigger === 'hover') {
             closeTimer.current = setTimeout(() => {
               setIsOpen(false);
             }, 100);
@@ -84,8 +127,9 @@ const MyMenu = ({
       >
         <Box
           position={'relative'}
-          onClickCapture={() => {
-            if (trigger === 'click') {
+          onClickCapture={(e) => {
+            e.stopPropagation();
+            if (formatTrigger === 'click') {
               setIsOpen(!isOpen);
             }
           }}
@@ -99,33 +143,79 @@ const MyMenu = ({
             bottom={0}
             left={0}
           />
-          <Box position={'relative'}>{Button}</Box>
+          <Box
+            position={'relative'}
+            color={isOpen ? 'primary.600' : ''}
+            w="fit-content"
+            p="1"
+            bgColor={isOpen ? 'myGray.50' : ''}
+            h="fit-content"
+            borderRadius="sm"
+          >
+            {Button}
+          </Box>
         </Box>
         <MenuList
-          minW={isOpen ? `${width}px !important` : 0}
+          minW={isOpen ? `${width}px !important` : '80px'}
+          zIndex={100}
+          maxW={'300px'}
           p={'6px'}
           border={'1px solid #fff'}
-          boxShadow={
-            '0px 2px 4px rgba(161, 167, 179, 0.25), 0px 0px 1px rgba(121, 141, 159, 0.25);'
-          }
+          boxShadow={'3'}
         >
-          {menuList.map((item, i) => (
-            <MenuItem
-              key={i}
-              {...menuItemStyles}
-              {...typeMapStyle[item.type || 'primary']}
-              onClick={(e) => {
-                e.stopPropagation();
-                setIsOpen(false);
-                item.onClick && item.onClick();
-              }}
-              color={item.isActive ? 'primary.700' : 'myGray.600'}
-              whiteSpace={'pre-wrap'}
-            >
-              {!!item.icon && <MyIcon name={item.icon as any} w={'16px'} mr={2} />}
-              {item.label}
-            </MenuItem>
-          ))}
+          {menuList.map((item, i) => {
+            return (
+              <Box key={i}>
+                {item.label && <Box fontSize={'sm'}>{item.label}</Box>}
+                {i !== 0 && <MyDivider h={'1.5px'} my={1} />}
+                {item.children.map((child, index) => (
+                  <MenuItem
+                    key={index}
+                    borderRadius={'sm'}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (child.onClick) {
+                        setIsOpen(false);
+                        child.onClick();
+                      }
+                    }}
+                    py={2}
+                    px={3}
+                    alignItems={'center'}
+                    fontSize={'sm'}
+                    color={child.isActive ? 'primary.700' : 'myGray.600'}
+                    whiteSpace={'pre-wrap'}
+                    _notLast={{ mb: 0.5 }}
+                    {...typeMapStyle[child.type || 'primary']}
+                    {...child.menuItemStyles}
+                  >
+                    {!!child.icon && (
+                      <Avatar
+                        src={child.icon as any}
+                        borderRadius={iconRadius}
+                        w={iconSize}
+                        mr={3}
+                      />
+                    )}
+                    <Box w={'100%'}>
+                      <Box
+                        w={'100%'}
+                        color={child.description ? 'myGray.900' : 'inherit'}
+                        fontSize={'sm'}
+                      >
+                        {child.label}
+                      </Box>
+                      {child.description && (
+                        <Box color={'myGray.500'} fontSize={'mini'} w={'100%'}>
+                          {child.description}
+                        </Box>
+                      )}
+                    </Box>
+                  </MenuItem>
+                ))}
+              </Box>
+            );
+          })}
         </MenuList>
       </Box>
     </Menu>

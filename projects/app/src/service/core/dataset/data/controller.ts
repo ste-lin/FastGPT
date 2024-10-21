@@ -34,7 +34,6 @@ export async function insertData2Dataset({
   session?: ClientSession;
 }) {
   if (!q || !datasetId || !collectionId || !model) {
-    console.log(q, a, datasetId, collectionId, model);
     return Promise.reject('q, datasetId, collectionId, model is required');
   }
   if (String(teamId) === String(tmbId)) {
@@ -55,6 +54,12 @@ export async function insertData2Dataset({
 
   if (!indexes.find((index) => index.defaultIndex)) {
     indexes.unshift(getDefaultIndex({ q, a }));
+  } else if (q && a && !indexes.find((index) => index.text === q)) {
+    // push a q index
+    indexes.push({
+      defaultIndex: false,
+      text: q
+    });
   }
 
   indexes = indexes.slice(0, 6);
@@ -109,7 +114,7 @@ export async function insertData2Dataset({
  */
 export async function updateData2Dataset({
   dataId,
-  q,
+  q = '',
   a,
   indexes,
   model

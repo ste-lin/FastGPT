@@ -79,11 +79,11 @@ const SelectUsingWayModal = ({ share, onClose }: { share: OutLinkSchema; onClose
 
   const wayMap = {
     [UsingWayEnum.link]: {
-      blockTitle: t('core.app.outLink.Link block title'),
+      blockTitle: t('common:core.app.outLink.Link block title'),
       code: linkUrl
     },
     [UsingWayEnum.iframe]: {
-      blockTitle: t('core.app.outLink.Iframe block title'),
+      blockTitle: t('common:core.app.outLink.Iframe block title'),
       code: `<iframe
   src="${linkUrl}"
   style="width: 100%; height: 100%;"
@@ -92,7 +92,7 @@ const SelectUsingWayModal = ({ share, onClose }: { share: OutLinkSchema; onClose
 />`
     },
     [UsingWayEnum.script]: {
-      blockTitle: t('core.app.outLink.Script block title'),
+      blockTitle: t('common:core.app.outLink.Script block title'),
       code: `<script
   src="${baseUrl}/js/iframe.js"
   id="chatbot-iframe" 
@@ -120,8 +120,9 @@ console.log("Chat box loaded")
   return (
     <MyModal
       isOpen
+      isCentered
       iconSrc="/imgs/modal/usingWay.svg"
-      title={t('core.app.outLink.Select Using Way')}
+      title={t('common:core.app.outLink.Select Using Way')}
       onClose={onClose}
       maxW={['90vw', '700px']}
     >
@@ -139,23 +140,28 @@ console.log("Chat box loaded")
         />
 
         {/* config */}
-        <Grid gridTemplateColumns={['repeat(2,1fr)', 'repeat(3,1fr)']} gridGap={4} my={5}>
+        <Grid
+          gridTemplateColumns={['repeat(2,1fr)', 'repeat(3,1fr)']}
+          gridGap={4}
+          my={5}
+          fontSize={'sm'}
+        >
           <Flex {...gridItemStyle}>
-            <Box flex={1}>{t('core.app.outLink.Show History')}</Box>
+            <Box flex={1}>{t('common:core.app.outLink.Show History')}</Box>
             <Switch {...register('showHistory')} />
           </Flex>
           {getValues('usingWay') === UsingWayEnum.script && (
             <>
               <Flex {...gridItemStyle}>
-                <Box flex={1}>{t('core.app.outLink.Can Drag')}</Box>
+                <Box flex={1}>{t('common:core.app.outLink.Can Drag')}</Box>
                 <Switch {...register('scriptIconCanDrag')} />
               </Flex>
               <Flex {...gridItemStyle}>
-                <Box flex={1}>{t('core.app.outLink.Default open')}</Box>
+                <Box flex={1}>{t('common:core.app.outLink.Default open')}</Box>
                 <Switch {...register('scriptDefaultOpen')} />
               </Flex>
               <Flex {...gridItemStyle}>
-                <Box flex={1}>{t('core.app.outLink.Script Open Icon')}</Box>
+                <Box flex={1}>{t('common:core.app.outLink.Script Open Icon')}</Box>
                 <Image
                   src={getValues('scriptOpenIcon')}
                   alt={''}
@@ -166,7 +172,7 @@ console.log("Chat box loaded")
                 />
               </Flex>
               <Flex {...gridItemStyle}>
-                <Box flex={1}>{t('core.app.outLink.Script Close Icon')}</Box>
+                <Box flex={1}>{t('common:core.app.outLink.Script Close Icon')}</Box>
                 <Image
                   src={getValues('scriptCloseIcon')}
                   alt={''}
@@ -181,7 +187,7 @@ console.log("Chat box loaded")
         </Grid>
 
         {/* code */}
-        <Box borderRadius={'md'} bg={'myGray.100'} overflow={'hidden'}>
+        <Box borderRadius={'md'} bg={'myGray.100'} overflow={'hidden'} fontSize={'sm'}>
           <Flex
             p={3}
             bg={'myWhite.500'}

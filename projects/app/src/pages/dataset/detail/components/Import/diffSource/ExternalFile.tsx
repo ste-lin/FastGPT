@@ -93,8 +93,8 @@ const CustomLinkInput = () => {
         <Table bg={'white'}>
           <Thead>
             <Tr bg={'myGray.50'}>
-              <Th>{datasetT('External url')}</Th>
-              <Th>{datasetT('External id')}</Th>
+              <Th>{datasetT('external_url')}</Th>
+              <Th>{datasetT('external_id')}</Th>
               <Th>{datasetT('filename')}</Th>
               <Th></Th>
             </Tr>
@@ -159,7 +159,7 @@ const CustomLinkInput = () => {
             });
           }}
         >
-          {commonT('Add new')}
+          {commonT('add_new')}
         </Button>
         <Button
           isDisabled={list.filter((item) => !!item.externalFileUrl).length === 0}
@@ -180,7 +180,7 @@ const CustomLinkInput = () => {
             goToNext();
           })}
         >
-          {t('common.Next Step')}
+          {t('common:common.Next Step')}
         </Button>
       </Flex>
     </Box>

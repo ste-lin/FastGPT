@@ -5,7 +5,7 @@ import {
 import { formatModelChars2Points } from '../../../../support/wallet/usage/utils';
 import type { SelectedDatasetType } from '@fastgpt/global/core/workflow/api.d';
 import type { SearchDataResponseItemType } from '@fastgpt/global/core/dataset/type';
-import type { ModuleDispatchProps } from '@fastgpt/global/core/workflow/type/index.d';
+import type { ModuleDispatchProps } from '@fastgpt/global/core/workflow/runtime/type';
 import { ModelTypeEnum, getLLMModel, getVectorModel } from '../../../ai/model';
 import { searchDatasetData } from '../../../dataset/search/controller';
 import { NodeInputKeyEnum, NodeOutputKeyEnum } from '@fastgpt/global/core/workflow/constants';
@@ -27,6 +27,7 @@ type DatasetSearchProps = ModuleDispatchProps<{
   [NodeInputKeyEnum.datasetSearchUsingExtensionQuery]: boolean;
   [NodeInputKeyEnum.datasetSearchExtensionModel]: string;
   [NodeInputKeyEnum.datasetSearchExtensionBg]: string;
+  [NodeInputKeyEnum.collectionFilterMatch]: string;
 }>;
 export type DatasetSearchResponse = DispatchNodeResultType<{
   [NodeOutputKeyEnum.datasetQuoteQA]: SearchDataResponseItemType[];
@@ -36,7 +37,7 @@ export async function dispatchDatasetSearch(
   props: DatasetSearchProps
 ): Promise<DatasetSearchResponse> {
   const {
-    teamId,
+    runningAppInfo: { teamId },
     histories,
     node,
     params: {
@@ -49,7 +50,8 @@ export async function dispatchDatasetSearch(
 
       datasetSearchUsingExtensionQuery,
       datasetSearchExtensionModel,
-      datasetSearchExtensionBg
+      datasetSearchExtensionBg,
+      collectionFilterMatch
     }
   } = props as DatasetSearchProps;
 
@@ -99,7 +101,8 @@ export async function dispatchDatasetSearch(
     limit,
     datasetIds: datasets.map((item) => item.datasetId),
     searchMode,
-    usingReRank: usingReRank && (await checkTeamReRankPermission(teamId))
+    usingReRank: usingReRank && (await checkTeamReRankPermission(teamId)),
+    collectionFilterMatch
   });
 
   // count bill results
@@ -156,8 +159,9 @@ export async function dispatchDatasetSearch(
     [DispatchNodeResponseKeyEnum.nodeResponse]: responseData,
     nodeDispatchUsages,
     [DispatchNodeResponseKeyEnum.toolResponses]: searchRes.map((item) => ({
-      id: item.id,
-      text: `${item.q}\n${item.a}`.trim()
+      sourceName: item.sourceName,
+      updateTime: item.updateTime,
+      content: `${item.q}\n${item.a}`.trim()
     }))
   };
 }

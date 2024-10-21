@@ -1,10 +1,19 @@
 {
   "name": "@fastgpt/plugins",
   "version": "1.0.0",
-  "dependencies": {},
+  "type": "module",
+  "dependencies": {
+    "axios": "^1.5.1",
+    "duck-duck-scrape": "^2.2.5",
+    "echarts": "5.4.1",
+    "expr-eval": "^2.0.2",
+    "lodash": "^4.17.21",
+    "wikijs": "^6.4.1"
+  },
   "devDependencies": {
-    "@types/node": "^20.8.5",
     "@fastgpt/global": "workspace:*",
-    "@fastgpt/service": "workspace:*"
+    "@fastgpt/service": "workspace:*",
+    "@types/lodash": "^4.14.191",
+    "@types/node": "20.14.0"
   }
 }

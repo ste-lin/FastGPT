@@ -6,6 +6,11 @@ import type { UserType } from '@fastgpt/global/support/user/type.d';
 import { getTokenLogin, putUserInfo } from '@/web/support/user/api';
 import { FeTeamPlanStatusType } from '@fastgpt/global/support/wallet/sub/type';
 import { getTeamPlanStatus } from './team/api';
+import { getTeamMembers } from '@/web/support/user/team/api';
+import { TeamMemberItemType } from '@fastgpt/global/support/user/team/type';
+import { useSystemStore } from '@/web/common/system/useSystemStore';
+import { MemberGroupListType } from '@fastgpt/global/support/permission/memberGroup/type';
+import { getGroupList } from './team/group/api';
 
 type State = {
   systemMsgReadId: string;
@@ -15,8 +20,15 @@ type State = {
   initUserInfo: () => Promise<UserType>;
   setUserInfo: (user: UserType | null) => void;
   updateUserInfo: (user: UserUpdateParams) => Promise<void>;
+
   teamPlanStatus: FeTeamPlanStatusType | null;
   initTeamPlanStatus: () => Promise<any>;
+
+  teamMembers: TeamMemberItemType[];
+  loadAndGetTeamMembers: (init?: boolean) => Promise<TeamMemberItemType[]>;
+
+  teamMemberGroups: MemberGroupListType;
+  loadAndGetGroups: (init?: boolean) => Promise<MemberGroupListType>;
 };
 
 export const useUserStore = create<State>()(
@@ -68,6 +80,7 @@ export const useUserStore = create<State>()(
             return Promise.reject(error);
           }
         },
+        // team
         teamPlanStatus: null,
         initTeamPlanStatus() {
           return getTeamPlanStatus().then((res) => {
@@ -76,6 +89,36 @@ export const useUserStore = create<State>()(
             });
             return res;
           });
+        },
+        teamMembers: [],
+        loadAndGetTeamMembers: async (init = false) => {
+          if (!useSystemStore.getState()?.feConfigs?.isPlus) return [];
+
+          const randomRefresh = Math.random() > 0.7;
+          if (!randomRefresh && !init && get().teamMembers?.length)
+            return Promise.resolve(get().teamMembers);
+
+          const res = await getTeamMembers();
+          set((state) => {
+            state.teamMembers = res;
+          });
+
+          return res;
+        },
+        teamMemberGroups: [],
+        loadAndGetGroups: async (init = false) => {
+          if (!useSystemStore.getState()?.feConfigs?.isPlus) return [];
+
+          const randomRefresh = Math.random() > 0.7;
+          if (!randomRefresh && !init && get().teamMemberGroups.length)
+            return Promise.resolve(get().teamMemberGroups);
+
+          const res = await getGroupList();
+          set((state) => {
+            state.teamMemberGroups = res;
+          });
+
+          return res;
         }
       })),
       {

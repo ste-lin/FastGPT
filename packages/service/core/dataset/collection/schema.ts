@@ -1,4 +1,4 @@
-import { connectionMongo, type Model } from '../../../common/mongo';
+import { connectionMongo, getMongoModel, type Model } from '../../../common/mongo';
 const { Schema, model, models } = connectionMongo;
 import { DatasetCollectionSchemaType } from '@fastgpt/global/core/dataset/type.d';
 import { TrainingTypeMap, DatasetCollectionTypeMap } from '@fastgpt/global/core/dataset/constants';
@@ -48,12 +48,15 @@ const DatasetCollectionSchema = new Schema({
     type: Date,
     default: () => new Date()
   },
+  forbid: {
+    type: Boolean,
+    default: false
+  },
 
   // chunk filed
   trainingType: {
     type: String,
-    enum: Object.keys(TrainingTypeMap),
-    required: true
+    enum: Object.keys(TrainingTypeMap)
   },
   chunkSize: {
     type: Number,
@@ -65,6 +68,7 @@ const DatasetCollectionSchema = new Schema({
   qaPrompt: {
     type: String
   },
+  ocrParse: Boolean,
 
   tags: {
     type: [String],
@@ -93,21 +97,36 @@ const DatasetCollectionSchema = new Schema({
 
 try {
   // auth file
-  DatasetCollectionSchema.index({ teamId: 1, fileId: 1 }, { background: true });
+  DatasetCollectionSchema.index({ teamId: 1, fileId: 1 });
 
   // list collection; deep find collections
+  DatasetCollectionSchema.index({
+    teamId: 1,
+    datasetId: 1,
+    parentId: 1,
+    updateTime: -1
+  });
+
+  // Tag filter
+  DatasetCollectionSchema.index({ teamId: 1, datasetId: 1, tags: 1 });
+  // create time filter
+  DatasetCollectionSchema.index({ teamId: 1, datasetId: 1, createTime: 1 });
+
+  // Get collection by external file id
   DatasetCollectionSchema.index(
+    { datasetId: 1, externalFileId: 1 },
     {
-      teamId: 1,
-      datasetId: 1,
-      parentId: 1,
-      updateTime: -1
-    },
-    { background: true }
+      unique: true,
+      partialFilterExpression: {
+        externalFileId: { $exists: true }
+      }
+    }
   );
 } catch (error) {
   console.log(error);
 }
 
-export const MongoDatasetCollection: Model<DatasetCollectionSchemaType> =
-  models[DatasetColCollectionName] || model(DatasetColCollectionName, DatasetCollectionSchema);
+export const MongoDatasetCollection = getMongoModel<DatasetCollectionSchemaType>(
+  DatasetColCollectionName,
+  DatasetCollectionSchema
+);

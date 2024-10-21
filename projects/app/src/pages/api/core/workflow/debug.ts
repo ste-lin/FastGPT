@@ -1,25 +1,21 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { pushChatUsage } from '@/service/support/wallet/usage/push';
 import { UsageSourceEnum } from '@fastgpt/global/support/wallet/usage/constants';
-import { authApp } from '@fastgpt/service/support/permission/auth/app';
+import { authApp } from '@fastgpt/service/support/permission/app/auth';
 import { dispatchWorkFlow } from '@fastgpt/service/core/workflow/dispatch';
 import { authCert } from '@fastgpt/service/support/permission/auth/common';
 import { getUserChatInfoAndAuthTeamPoints } from '@/service/support/permission/auth/team';
 import { PostWorkflowDebugProps, PostWorkflowDebugResponse } from '@/global/core/workflow/api';
-import { authPluginCrud } from '@fastgpt/service/support/permission/auth/plugin';
 import { NextAPI } from '@/service/middleware/entry';
+import { ReadPermissionVal } from '@fastgpt/global/support/permission/constant';
+import { defaultApp } from '@/web/core/app/constants';
+import { WORKFLOW_MAX_RUN_TIMES } from '@fastgpt/service/core/workflow/constants';
 
 async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ): Promise<PostWorkflowDebugResponse> {
-  const {
-    nodes = [],
-    edges = [],
-    variables = {},
-    appId,
-    pluginId
-  } = req.body as PostWorkflowDebugProps;
+  const { nodes = [], edges = [], variables = {}, appId } = req.body as PostWorkflowDebugProps;
 
   if (!nodes) {
     throw new Error('Prams Error');
@@ -32,34 +28,37 @@ async function handler(
   }
 
   /* user auth */
-  const [{ teamId, tmbId }] = await Promise.all([
+  const [{ teamId, tmbId }, { app }] = await Promise.all([
     authCert({
       req,
       authToken: true
     }),
-    appId && authApp({ req, authToken: true, appId, per: 'r' }),
-    pluginId && authPluginCrud({ req, authToken: true, pluginId, per: 'r' })
+    authApp({ req, authToken: true, appId, per: ReadPermissionVal })
   ]);
 
   // auth balance
   const { user } = await getUserChatInfoAndAuthTeamPoints(tmbId);
 
   /* start process */
-  const { flowUsages, flowResponses, debugResponse } = await dispatchWorkFlow({
+  const { flowUsages, flowResponses, debugResponse, newVariables } = await dispatchWorkFlow({
     res,
+    requestOrigin: req.headers.origin,
     mode: 'debug',
-    teamId,
-    tmbId,
+    runningAppInfo: {
+      id: appId,
+      teamId,
+      tmbId
+    },
+    uid: tmbId,
     user,
-    appId,
     runtimeNodes: nodes,
     runtimeEdges: edges,
     variables,
     query: [],
+    chatConfig: defaultApp.chatConfig,
     histories: [],
     stream: false,
-    detail: true,
-    maxRunTimes: 200
+    maxRunTimes: WORKFLOW_MAX_RUN_TIMES
   });
 
   pushChatUsage({
@@ -73,6 +72,7 @@ async function handler(
 
   return {
     ...debugResponse,
+    newVariables,
     flowResponses
   };
 }

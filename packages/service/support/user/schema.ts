@@ -1,10 +1,23 @@
-import { connectionMongo, type Model } from '../../common/mongo';
-const { Schema, model, models } = connectionMongo;
+import { connectionMongo, getMongoModel } from '../../common/mongo';
+const { Schema } = connectionMongo;
 import { hashStr } from '@fastgpt/global/common/string/tools';
 import type { UserModelSchema } from '@fastgpt/global/support/user/type';
 import { UserStatusEnum, userStatusMap } from '@fastgpt/global/support/user/constant';
 
 export const userCollectionName = 'users';
+
+const defaultAvatars = [
+  '/imgs/avatar/RoyalBlueAvatar.svg',
+  '/imgs/avatar/PurpleAvatar.svg',
+  '/imgs/avatar/AdoraAvatar.svg',
+  '/imgs/avatar/OrangeAvatar.svg',
+  '/imgs/avatar/RedAvatar.svg',
+  '/imgs/avatar/GrayModernAvatar.svg',
+  '/imgs/avatar/TealAvatar.svg',
+  '/imgs/avatar/GreenAvatar.svg',
+  '/imgs/avatar/BrightBlueAvatar.svg',
+  '/imgs/avatar/BlueAvatar.svg'
+];
 
 const UserSchema = new Schema({
   status: {
@@ -18,14 +31,8 @@ const UserSchema = new Schema({
     required: true,
     unique: true // 唯一
   },
-  email: {
-    type: String
-  },
   phonePrefix: {
     type: Number
-  },
-  phone: {
-    type: String
   },
   password: {
     type: String,
@@ -40,7 +47,7 @@ const UserSchema = new Schema({
   },
   avatar: {
     type: String,
-    default: '/icon/human.svg'
+    default: defaultAvatars[Math.floor(Math.random() * defaultAvatars.length)]
   },
   inviterId: {
     // 谁邀请注册的
@@ -74,6 +81,4 @@ try {
   console.log(error);
 }
 
-export const MongoUser: Model<UserModelSchema> =
-  models[userCollectionName] || model(userCollectionName, UserSchema);
-MongoUser.syncIndexes();
+export const MongoUser = getMongoModel<UserModelSchema>(userCollectionName, UserSchema);

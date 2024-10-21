@@ -18,18 +18,9 @@ export type GetDatasetCollectionsProps = RequestPaging & {
   datasetId: string;
   parentId?: string;
   searchText?: string;
+  filterTags?: string[];
   simple?: boolean;
   selectFolder?: boolean;
 };
 
-export type UpdateDatasetCollectionParams = {
-  id: string;
-  parentId?: string;
-  name?: string;
-};
-
 /* ==== data ===== */
-export type GetDatasetDataListProps = RequestPaging & {
-  searchText?: string;
-  collectionId: string;
-};

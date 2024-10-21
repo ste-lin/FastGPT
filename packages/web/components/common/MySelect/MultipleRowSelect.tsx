@@ -13,6 +13,7 @@ const MultipleRowSelect = ({
   emptyTip,
   maxH = 300,
   onSelect,
+  popDirection = 'bottom',
   styles
 }: MultipleSelectProps) => {
   const { t } = useTranslation();
@@ -35,6 +36,7 @@ const MultipleRowSelect = ({
       return (
         <>
           <Box
+            className="nowheel"
             flex={'1 0 auto'}
             // width={0}
             px={2}
@@ -56,11 +58,18 @@ const MultipleRowSelect = ({
                 }}
                 onClick={() => {
                   const newValue = [...cloneValue];
-                  newValue[index] = item.value;
-                  setCloneValue(newValue);
-                  if (!hasChildren) {
+
+                  if (item.value === selectedValue) {
+                    newValue[index] = undefined;
+                    setCloneValue(newValue);
                     onSelect(newValue);
-                    onClose();
+                  } else {
+                    newValue[index] = item.value;
+                    setCloneValue(newValue);
+                    if (!hasChildren) {
+                      onSelect(newValue);
+                      onClose();
+                    }
                   }
                 }}
                 {...(item.value === selectedValue
@@ -73,7 +82,11 @@ const MultipleRowSelect = ({
               </Flex>
             ))}
             {list.length === 0 && (
-              <EmptyTip text={emptyTip ?? t('common.MultipleRowSelect.No data')} pt={1} pb={3} />
+              <EmptyTip
+                text={emptyTip ?? t('common:common.MultipleRowSelect.No data')}
+                pt={1}
+                pb={3}
+              />
             )}
           </Box>
           {children.length > 0 && <RenderList list={children} index={index + 1} />}
@@ -94,7 +107,7 @@ const MultipleRowSelect = ({
         justifyContent={'space-between'}
         width={'100%'}
         rightIcon={<ChevronDownIcon />}
-        variant={'whiteFlow'}
+        variant={'whiteBase'}
         _active={{
           transform: 'none'
         }}
@@ -112,7 +125,13 @@ const MultipleRowSelect = ({
       {isOpen && (
         <Box
           position={'absolute'}
-          top={'45px'}
+          {...(popDirection === 'top'
+            ? {
+                bottom: '45px'
+              }
+            : {
+                top: '45px'
+              })}
           py={2}
           bg={'white'}
           border={'1px solid #fff'}

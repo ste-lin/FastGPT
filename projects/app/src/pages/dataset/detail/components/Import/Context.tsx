@@ -6,7 +6,7 @@ import { ImportDataSourceEnum, TrainingModeEnum } from '@fastgpt/global/core/dat
 import { useMyStep } from '@fastgpt/web/hooks/useStep';
 import { Box, Button, Flex, IconButton } from '@chakra-ui/react';
 import MyIcon from '@fastgpt/web/components/common/Icon';
-import { TabEnum } from '../Slider';
+import { TabEnum } from '../NavBar';
 import { ImportProcessWayEnum } from '@/web/core/dataset/constants';
 import { UseFormReturn, useForm } from 'react-hook-form';
 import { ImportSourceItemType } from '@/web/core/dataset/type';
@@ -37,11 +37,12 @@ type DatasetImportContextType = {
   setSources: React.Dispatch<React.SetStateAction<ImportSourceItemType[]>>;
 } & TrainingFiledType;
 
-type ChunkSizeFieldType = 'embeddingChunkSize';
+type ChunkSizeFieldType = 'embeddingChunkSize' | 'qaChunkSize';
 export type ImportFormType = {
   mode: TrainingModeEnum;
   way: ImportProcessWayEnum;
   embeddingChunkSize: number;
+  qaChunkSize: number;
   customSplitChar: string;
   qaPrompt: string;
   webSelector: string;
@@ -87,57 +88,57 @@ const DatasetImportContextProvider = ({ children }: { children: React.ReactNode 
   const modeSteps: Record<ImportDataSourceEnum, { title: string }[]> = {
     [ImportDataSourceEnum.fileLocal]: [
       {
-        title: t('core.dataset.import.Select file')
+        title: t('common:core.dataset.import.Select file')
       },
       {
-        title: t('core.dataset.import.Data Preprocessing')
+        title: t('common:core.dataset.import.Data Preprocessing')
       },
       {
-        title: t('core.dataset.import.Upload data')
+        title: t('common:core.dataset.import.Upload data')
       }
     ],
     [ImportDataSourceEnum.fileLink]: [
       {
-        title: t('core.dataset.import.Select file')
+        title: t('common:core.dataset.import.Select file')
       },
       {
-        title: t('core.dataset.import.Data Preprocessing')
+        title: t('common:core.dataset.import.Data Preprocessing')
       },
       {
-        title: t('core.dataset.import.Upload data')
+        title: t('common:core.dataset.import.Upload data')
       }
     ],
     [ImportDataSourceEnum.fileCustom]: [
       {
-        title: t('core.dataset.import.Select file')
+        title: t('common:core.dataset.import.Select file')
       },
       {
-        title: t('core.dataset.import.Data Preprocessing')
+        title: t('common:core.dataset.import.Data Preprocessing')
       },
       {
-        title: t('core.dataset.import.Upload data')
+        title: t('common:core.dataset.import.Upload data')
       }
     ],
     [ImportDataSourceEnum.csvTable]: [
       {
-        title: t('core.dataset.import.Select file')
+        title: t('common:core.dataset.import.Select file')
       },
       {
-        title: t('core.dataset.import.Data Preprocessing')
+        title: t('common:core.dataset.import.Data Preprocessing')
       },
       {
-        title: t('core.dataset.import.Upload data')
+        title: t('common:core.dataset.import.Upload data')
       }
     ],
     [ImportDataSourceEnum.externalFile]: [
       {
-        title: t('core.dataset.import.Select file')
+        title: t('common:core.dataset.import.Select file')
       },
       {
-        title: t('core.dataset.import.Data Preprocessing')
+        title: t('common:core.dataset.import.Data Preprocessing')
       },
       {
-        title: t('core.dataset.import.Upload data')
+        title: t('common:core.dataset.import.Upload data')
       }
     ]
   };
@@ -147,7 +148,6 @@ const DatasetImportContextProvider = ({ children }: { children: React.ReactNode 
     steps
   });
 
-  // -----
   const vectorModel = datasetDetail.vectorModel;
   const agentModel = datasetDetail.agentModel;
 
@@ -156,6 +156,7 @@ const DatasetImportContextProvider = ({ children }: { children: React.ReactNode 
       mode: TrainingModeEnum.chunk,
       way: ImportProcessWayEnum.auto,
       embeddingChunkSize: vectorModel?.defaultToken || 512,
+      qaChunkSize: Math.min(agentModel.maxResponse * 1, agentModel.maxContext * 0.7),
       customSplitChar: '',
       qaPrompt: Prompt_AgentQA.description,
       webSelector: ''
@@ -168,6 +169,7 @@ const DatasetImportContextProvider = ({ children }: { children: React.ReactNode 
   const mode = processParamsForm.watch('mode');
   const way = processParamsForm.watch('way');
   const embeddingChunkSize = processParamsForm.watch('embeddingChunkSize');
+  const qaChunkSize = processParamsForm.watch('qaChunkSize');
   const customSplitChar = processParamsForm.watch('customSplitChar');
 
   const modeStaticParams: Record<TrainingModeEnum, TrainingFiledType> = {
@@ -180,7 +182,7 @@ const DatasetImportContextProvider = ({ children }: { children: React.ReactNode 
       showChunkInput: false,
       showPromptInput: false,
       charsPointsPrice: agentModel.charsPointsPrice,
-      priceTip: t('core.dataset.import.Auto mode Estimated Price Tips', {
+      priceTip: t('common:core.dataset.import.Auto mode Estimated Price Tips', {
         price: agentModel.charsPointsPrice
       }),
       uploadRate: 100
@@ -195,21 +197,22 @@ const DatasetImportContextProvider = ({ children }: { children: React.ReactNode 
       showChunkInput: true,
       showPromptInput: false,
       charsPointsPrice: vectorModel.charsPointsPrice,
-      priceTip: t('core.dataset.import.Embedding Estimated Price Tips', {
+      priceTip: t('common:core.dataset.import.Embedding Estimated Price Tips', {
         price: vectorModel.charsPointsPrice
       }),
       uploadRate: 150
     },
     [TrainingModeEnum.qa]: {
+      chunkSizeField: 'qaChunkSize' as ChunkSizeFieldType,
       chunkOverlapRatio: 0,
-      maxChunkSize: 8000,
-      minChunkSize: 3000,
-      autoChunkSize: agentModel.maxContext * 0.55 || 6000,
-      chunkSize: agentModel.maxContext * 0.55 || 6000,
-      showChunkInput: false,
+      maxChunkSize: Math.min(agentModel.maxResponse * 4, agentModel.maxContext * 0.7),
+      minChunkSize: 4000,
+      autoChunkSize: Math.min(agentModel.maxResponse * 1, agentModel.maxContext * 0.7),
+      chunkSize: qaChunkSize,
+      showChunkInput: true,
       showPromptInput: true,
       charsPointsPrice: agentModel.charsPointsPrice,
-      priceTip: t('core.dataset.import.QA Estimated Price Tips', {
+      priceTip: t('common:core.dataset.import.QA Estimated Price Tips', {
         price: agentModel?.charsPointsPrice
       }),
       uploadRate: 30
@@ -227,7 +230,6 @@ const DatasetImportContextProvider = ({ children }: { children: React.ReactNode 
       customSplitChar
     }
   };
-
   const chunkSize = wayStaticPrams[way].chunkSize;
 
   const contextValue = {
@@ -266,7 +268,7 @@ const DatasetImportContextProvider = ({ children }: { children: React.ReactNode 
                 })
               }
             />
-            {t('common.Exit')}
+            {t('common:common.Exit')}
           </Flex>
         ) : (
           <Button
@@ -274,7 +276,7 @@ const DatasetImportContextProvider = ({ children }: { children: React.ReactNode 
             leftIcon={<MyIcon name={'common/backFill'} w={'14px'} />}
             onClick={goToPrevious}
           >
-            {t('common.Last Step')}
+            {t('common:common.Last Step')}
           </Button>
         )}
         <Box flex={1} />

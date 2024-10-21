@@ -1,3 +1,4 @@
+import { i18nT } from '../../../../../../web/i18n/utils';
 import {
   FlowNodeTemplateTypeEnum,
   NodeInputKeyEnum,
@@ -9,7 +10,7 @@ import {
   FlowNodeOutputTypeEnum,
   FlowNodeTypeEnum
 } from '../../../node/constant';
-import { FlowNodeTemplateType } from '../../../type';
+import { FlowNodeTemplateType } from '../../../type/node';
 import { getHandleConfig } from '../../utils';
 
 export const IfElseNode: FlowNodeTemplateType = {
@@ -18,10 +19,11 @@ export const IfElseNode: FlowNodeTemplateType = {
   flowNodeType: FlowNodeTypeEnum.ifElseNode,
   sourceHandle: getHandleConfig(false, false, false, false),
   targetHandle: getHandleConfig(true, false, true, true),
-  avatar: '/imgs/workflow/ifElse.svg',
-  name: '判断器',
-  intro: '根据一定的条件，执行不同的分支。',
+  avatar: 'core/workflow/template/ifelse',
+  name: i18nT('workflow:condition_checker'),
+  intro: i18nT('workflow:execute_different_branches_based_on_conditions'),
   showStatus: true,
+  courseUrl: '/docs/workflow/modules/tfswitch/',
   version: '481',
   inputs: [
     {
@@ -47,7 +49,7 @@ export const IfElseNode: FlowNodeTemplateType = {
     {
       id: NodeOutputKeyEnum.ifElseResult,
       key: NodeOutputKeyEnum.ifElseResult,
-      label: '判断结果',
+      label: i18nT('workflow:judgment_result'),
       valueType: WorkflowIOValueTypeEnum.string,
       type: FlowNodeOutputTypeEnum.static
     }

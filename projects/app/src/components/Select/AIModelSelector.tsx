@@ -7,7 +7,7 @@ import { AI_POINT_USAGE_CARD_ROUTE } from '@/web/support/wallet/sub/constants';
 import MySelect, { SelectProps } from '@fastgpt/web/components/common/MySelect';
 import { HUGGING_FACE_ICON, LOGO_ICON } from '@fastgpt/global/common/system/constants';
 import { Box, Flex } from '@chakra-ui/react';
-import Avatar from '../Avatar';
+import Avatar from '@fastgpt/web/components/common/Avatar';
 import MyTooltip from '@fastgpt/web/components/common/MyTooltip';
 
 type Props = SelectProps & {
@@ -47,7 +47,7 @@ const AIModelSelector = ({ list, onchange, disableTip, ...props }: Props) => {
           label: (
             <Flex alignItems={'center'}>
               <Avatar borderRadius={'0'} mr={2} src={LOGO_ICON} w={'18px'} />
-              <Box>{t('support.user.Price')}</Box>
+              <Box>{t('common:support.user.Price')}</Box>
             </Flex>
           ),
           value: 'price'
@@ -61,14 +61,20 @@ const AIModelSelector = ({ list, onchange, disableTip, ...props }: Props) => {
         router.push(AI_POINT_USAGE_CARD_ROUTE);
         return;
       }
-      onchange?.(e);
+      return onchange?.(e);
     },
     [onchange, router]
   );
 
   return (
     <MyTooltip label={disableTip}>
-      <MySelect isDisabled={!!disableTip} list={expandList} {...props} onchange={onSelect} />
+      <MySelect
+        className="nowheel"
+        isDisabled={!!disableTip}
+        list={expandList}
+        {...props}
+        onchange={onSelect}
+      />
     </MyTooltip>
   );
 };

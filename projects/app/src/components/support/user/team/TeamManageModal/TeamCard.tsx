@@ -1,72 +1,138 @@
-import { Box, Button, Flex } from '@chakra-ui/react';
+import { Box, Button, Flex, useDisclosure } from '@chakra-ui/react';
 import MyIcon from '@fastgpt/web/components/common/Icon';
-import { TeamContext } from '.';
 import { useUserStore } from '@/web/support/user/useUserStore';
 import { useContextSelector } from 'use-context-selector';
 import { TeamMemberRoleEnum } from '@fastgpt/global/support/user/team/constant';
-import RowTabs from '../../../../common/Rowtabs';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'next-i18next';
 import { useSystemStore } from '@/web/common/system/useSystemStore';
 import { useToast } from '@fastgpt/web/hooks/useToast';
-import { DragHandleIcon } from '@chakra-ui/icons';
-import MemberTable from './MemberTable';
-import PermissionManage from './PermissionManage';
+import MemberTable from './components/MemberTable';
 import { useConfirm } from '@fastgpt/web/hooks/useConfirm';
-import { hasManage } from '@fastgpt/service/support/permission/resourcePermission/permisson';
-import { useI18n } from '@/web/context/I18n';
-type TabListType = Pick<React.ComponentProps<typeof RowTabs>, 'list'>['list'];
+import { TeamModalContext } from './context';
+import { useRequest2 } from '@fastgpt/web/hooks/useRequest';
+import { delLeaveTeam } from '@/web/support/user/team/api';
+import dynamic from 'next/dynamic';
+import LightRowTabs from '@fastgpt/web/components/common/Tabs/LightRowTabs';
+import SearchInput from '@fastgpt/web/components/common/Input/SearchInput';
+
 enum TabListEnum {
   member = 'member',
-  permission = 'permission'
+  permission = 'permission',
+  group = 'group'
 }
+
+const TeamTagModal = dynamic(() => import('../TeamTagModal'));
+const InviteModal = dynamic(() => import('./components/InviteModal'));
+const PermissionManage = dynamic(() => import('./components/PermissionManage/index'));
+const GroupManage = dynamic(() => import('./components/GroupManage/index'));
+const GroupInfoModal = dynamic(() => import('./components/GroupManage/GroupInfoModal'));
+const ManageGroupMemberModal = dynamic(() => import('./components/GroupManage/GroupManageMember'));
 
 function TeamCard() {
   const { toast } = useToast();
   const { t } = useTranslation();
-  const { userT } = useI18n();
-  const members = useContextSelector(TeamContext, (v) => v.members);
-  const onOpenInvite = useContextSelector(TeamContext, (v) => v.onOpenInvite);
-  const onOpenTeamTagsAsync = useContextSelector(TeamContext, (v) => v.onOpenTeamTagsAsync);
-  const setEditTeamData = useContextSelector(TeamContext, (v) => v.setEditTeamData);
-  const onLeaveTeam = useContextSelector(TeamContext, (v) => v.onLeaveTeam);
+  const {
+    myTeams,
+    refetchTeams,
+    members,
+    refetchMembers,
+    setEditTeamData,
+    onSwitchTeam,
+    searchKey,
+    setSearchKey
+  } = useContextSelector(TeamModalContext, (v) => v);
 
   const { userInfo, teamPlanStatus } = useUserStore();
-
-  const { ConfirmModal: ConfirmLeaveTeamModal, openConfirm: openLeaveConfirm } = useConfirm({
-    content: t('user.team.member.Confirm Leave')
-  });
-
   const { feConfigs } = useSystemStore();
 
-  const Tablist: TabListType = [
-    {
-      icon: 'support/team/memberLight',
-      label: (
-        <Flex alignItems={'center'}>
-          <Box ml={1}>{t('user.team.Member')}</Box>
-          <Box ml={2} bg={'myGray.100'} borderRadius={'20px'} px={3} fontSize={'xs'}>
-            {members.length}
-          </Box>
-        </Flex>
-      ),
-      value: TabListEnum.member
+  const { ConfirmModal: ConfirmLeaveTeamModal, openConfirm: openLeaveConfirm } = useConfirm({
+    content: t('common:user.team.member.Confirm Leave')
+  });
+
+  const { runAsync: onLeaveTeam, loading: isLoadingLeaveTeam } = useRequest2(
+    async (teamId?: string) => {
+      if (!teamId) return;
+      const defaultTeam = myTeams.find((item) => item.defaultTeam) || myTeams[0];
+      // change to personal team
+      // get members
+      onSwitchTeam(defaultTeam.teamId);
+      return delLeaveTeam(teamId);
     },
     {
-      icon: 'support/team/key',
-      label: t('common.Role'),
-      value: TabListEnum.permission
+      onSuccess() {
+        refetchTeams();
+      },
+      errorToast: t('common:user.team.Leave Team Failed')
     }
-  ];
+  );
 
-  const [tab, setTab] = useState<string>(Tablist[0].value);
+  const {
+    isOpen: isOpenTeamTagsAsync,
+    onOpen: onOpenTeamTagsAsync,
+    onClose: onCloseTeamTagsAsync
+  } = useDisclosure();
+
+  const {
+    isOpen: isOpenGroupInfo,
+    onOpen: onOpenGroupInfo,
+    onClose: onCloseGroupInfo
+  } = useDisclosure();
+
+  const {
+    isOpen: isOpenManageGroupMember,
+    onOpen: onOpenManageGroupMember,
+    onClose: onCloseManageGroupMember
+  } = useDisclosure();
+
+  const { isOpen: isOpenInvite, onOpen: onOpenInvite, onClose: onCloseInvite } = useDisclosure();
+
+  const [editGroupId, setEditGroupId] = useState<string>();
+  const onEditGroup = (groupId: string) => {
+    setEditGroupId(groupId);
+    onOpenGroupInfo();
+  };
+
+  const onManageMember = (groupId: string) => {
+    setEditGroupId(groupId);
+    onOpenManageGroupMember();
+  };
+
+  const Tablist = useMemo(
+    () => [
+      {
+        icon: 'support/team/memberLight',
+        label: (
+          <Flex alignItems={'center'}>
+            <Box ml={1}>{t('common:user.team.Member')}</Box>
+            <Box ml={2} bg={'myGray.100'} borderRadius={'20px'} px={3} fontSize={'xs'}>
+              {members.length}
+            </Box>
+          </Flex>
+        ),
+        value: TabListEnum.member
+      },
+      {
+        icon: 'support/team/group',
+        label: t('user:team.group.group'),
+        value: TabListEnum.group
+      },
+      {
+        icon: 'support/team/key',
+        label: t('common:common.Role'),
+        value: TabListEnum.permission
+      }
+    ],
+    [members.length, t]
+  );
+  const [tab, setTab] = useState(Tablist[0].value);
+
   return (
     <Flex
       flexDirection={'column'}
-      flex={'1'}
-      h={['auto', '100%']}
       bg={'white'}
       minH={['50vh', 'auto']}
+      h={'100%'}
       borderRadius={['8px 8px 0 0', '8px 0 0 8px']}
     >
       <Flex
@@ -75,17 +141,17 @@ function TeamCard() {
         py={4}
         borderBottom={'1.5px solid'}
         borderBottomColor={'myGray.100'}
-        mb={3}
+        mb={2}
       >
-        <Box fontSize={['lg', 'xl']} fontWeight={'bold'} alignItems={'center'}>
+        <Box fontSize={['sm', 'md']} fontWeight={'bold'} alignItems={'center'} color={'myGray.900'}>
           {userInfo?.team.teamName}
         </Box>
         {userInfo?.team.role === TeamMemberRoleEnum.owner && (
           <MyIcon
             name="edit"
-            w={'14px'}
+            w="14px"
             ml={2}
-            cursor={'pointer'}
+            cursor="pointer"
             _hover={{
               color: 'primary.500'
             }}
@@ -102,79 +168,125 @@ function TeamCard() {
       </Flex>
 
       <Flex px={5} alignItems={'center'} justifyContent={'space-between'}>
-        <RowTabs
-          overflow={'auto'}
-          list={Tablist}
-          value={tab}
-          onChange={(v) => {
-            setTab(v as string);
-          }}
-        ></RowTabs>
+        <LightRowTabs<TabListEnum> overflow={'auto'} list={Tablist} value={tab} onChange={setTab} />
+        {/* ctrl buttons */}
         <Flex alignItems={'center'}>
-          {hasManage(
-            members.find((item) => item.tmbId.toString() === userInfo?.team.tmbId.toString())
-              ?.permission!
-          ) &&
-            tab === 'member' && (
+          {tab === TabListEnum.member &&
+            userInfo?.team.permission.hasManagePer &&
+            feConfigs?.show_team_chat && (
               <Button
                 variant={'whitePrimary'}
-                size="sm"
+                size="md"
                 borderRadius={'md'}
                 ml={3}
-                leftIcon={<MyIcon name="common/inviteLight" w={'14px'} color={'primary.500'} />}
+                leftIcon={<MyIcon name="core/dataset/tag" w={'16px'} />}
                 onClick={() => {
-                  if (
-                    teamPlanStatus?.standardConstants?.maxTeamMember &&
-                    teamPlanStatus.standardConstants.maxTeamMember <= members.length
-                  ) {
-                    toast({
-                      status: 'warning',
-                      title: t('user.team.Over Max Member Tip', {
-                        max: teamPlanStatus.standardConstants.maxTeamMember
-                      })
-                    });
-                  } else {
-                    onOpenInvite();
-                  }
+                  onOpenTeamTagsAsync();
                 }}
               >
-                {t('user.team.Invite Member')}
+                {t('common:user.team.Team Tags Async')}
               </Button>
             )}
-          {userInfo?.team.role === TeamMemberRoleEnum.owner && feConfigs?.show_team_chat && (
+          {tab === TabListEnum.member && userInfo?.team.permission.hasManagePer && (
             <Button
-              variant={'whitePrimary'}
-              size="sm"
+              variant={'primary'}
+              size="md"
               borderRadius={'md'}
               ml={3}
-              leftIcon={<DragHandleIcon w={'14px'} color={'primary.500'} />}
+              leftIcon={<MyIcon name="common/inviteLight" w={'16px'} color={'white'} />}
               onClick={() => {
-                onOpenTeamTagsAsync();
+                if (
+                  teamPlanStatus?.standardConstants?.maxTeamMember &&
+                  teamPlanStatus.standardConstants.maxTeamMember <= members.length
+                ) {
+                  toast({
+                    status: 'warning',
+                    title: t('user.team.Over Max Member Tip', {
+                      max: teamPlanStatus.standardConstants.maxTeamMember
+                    })
+                  });
+                } else {
+                  onOpenInvite();
+                }
               }}
             >
-              {t('user.team.Team Tags Async')}
+              {t('common:user.team.Invite Member')}
             </Button>
           )}
-          {userInfo?.team.role !== TeamMemberRoleEnum.owner && (
+          {tab === TabListEnum.member && !userInfo?.team.permission.isOwner && (
             <Button
               variant={'whitePrimary'}
-              size="sm"
+              size="md"
               borderRadius={'md'}
               ml={3}
               leftIcon={<MyIcon name={'support/account/loginoutLight'} w={'14px'} />}
+              isLoading={isLoadingLeaveTeam}
               onClick={() => {
                 openLeaveConfirm(() => onLeaveTeam(userInfo?.team?.teamId))();
               }}
             >
-              {t('user.team.Leave Team')}
+              {t('common:user.team.Leave Team')}
             </Button>
+          )}
+          {tab === TabListEnum.group && userInfo?.team.permission.hasManagePer && (
+            <Button
+              variant={'primary'}
+              size="md"
+              borderRadius={'md'}
+              ml={3}
+              leftIcon={<MyIcon name="support/permission/collaborator" w={'14px'} />}
+              onClick={onOpenGroupInfo}
+            >
+              {t('user:team.group.create')}
+            </Button>
+          )}
+          {tab === TabListEnum.permission && (
+            <Box ml="auto">
+              <SearchInput
+                placeholder={t('user:team.group.search_placeholder')}
+                w="200px"
+                value={searchKey}
+                onChange={(e) => setSearchKey(e.target.value)}
+              />
+            </Box>
           )}
         </Flex>
       </Flex>
 
       <Box mt={3} flex={'1 0 0'} overflow={'auto'}>
-        {tab === 'member' ? <MemberTable /> : <PermissionManage />}
+        {tab === TabListEnum.member && <MemberTable />}
+        {tab === TabListEnum.group && (
+          <GroupManage onEditGroup={onEditGroup} onManageMember={onManageMember} />
+        )}
+        {tab === TabListEnum.permission && <PermissionManage />}
       </Box>
+
+      {isOpenInvite && userInfo?.team?.teamId && (
+        <InviteModal
+          teamId={userInfo.team.teamId}
+          onClose={onCloseInvite}
+          onSuccess={refetchMembers}
+        />
+      )}
+      {isOpenTeamTagsAsync && <TeamTagModal onClose={onCloseTeamTagsAsync} />}
+      {isOpenGroupInfo && (
+        <GroupInfoModal
+          onClose={() => {
+            onCloseGroupInfo();
+            setEditGroupId(undefined);
+          }}
+          editGroupId={editGroupId}
+        />
+      )}
+      {isOpenManageGroupMember && (
+        <ManageGroupMemberModal
+          onClose={() => {
+            onCloseManageGroupMember();
+            setEditGroupId(undefined);
+          }}
+          editGroupId={editGroupId}
+        />
+      )}
       <ConfirmLeaveTeamModal />
     </Flex>
   );

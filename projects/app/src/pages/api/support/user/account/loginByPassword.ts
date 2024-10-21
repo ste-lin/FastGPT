@@ -49,7 +49,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       lastLoginTmbId: userDetail.team.tmbId
     });
 
-    const token = createJWT(userDetail);
+    const token = createJWT({
+      ...userDetail,
+      isRoot: username === 'root'
+    });
+
     setCookie(res, token);
 
     jsonRes(res, {

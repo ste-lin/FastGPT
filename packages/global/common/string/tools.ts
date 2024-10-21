@@ -33,9 +33,9 @@ export function replaceVariable(text: any, obj: Record<string, string | number>)
 
   for (const key in obj) {
     const val = obj[key];
-    if (!['string', 'number'].includes(typeof val)) continue;
+    const formatVal = typeof val === 'object' ? JSON.stringify(val) : String(val);
 
-    text = text.replace(new RegExp(`{{(${key})}}`, 'g'), String(val));
+    text = text.replace(new RegExp(`{{(${key})}}`, 'g'), formatVal);
   }
   return text || '';
 }
@@ -63,9 +63,18 @@ export const getNanoid = (size = 12) => {
 
   return `${firstChar}${randomsStr}`;
 };
+export const customNanoid = (str: string, size: number) => customAlphabet(str, size)();
 
 /* Custom text to reg, need to replace special chats */
 export const replaceRegChars = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+export const getRegQueryStr = (text: string, flags = 'i') => {
+  const formatText = replaceRegChars(text);
+  const chars = formatText.split('');
+  const regexPattern = chars.join('.*');
+
+  return new RegExp(regexPattern, flags);
+};
 
 /* slice json str */
 export const sliceJsonStr = (str: string) => {
@@ -82,4 +91,33 @@ export const sliceJsonStr = (str: string) => {
   const jsonStr = matches[0];
 
   return jsonStr;
+};
+
+export const sliceStrStartEnd = (str: string, start: number, end: number) => {
+  const overSize = str.length > start + end;
+
+  if (!overSize) return str;
+
+  const startContent = str.slice(0, start);
+  const endContent = overSize ? str.slice(-end) : '';
+
+  return `${startContent}${overSize ? `\n\n...[hide ${str.length - start - end} chars]...\n\n` : ''}${endContent}`;
+};
+
+/* 
+  Parse file extension from url
+  Test：
+  1. https://xxx.com/file.pdf?token=123
+    => pdf
+  2. https://xxx.com/file.pdf
+    => pdf
+*/
+export const parseFileExtensionFromUrl = (url = '') => {
+  // Remove query params
+  const urlWithoutQuery = url.split('?')[0];
+  // Get file name
+  const fileName = urlWithoutQuery.split('/').pop() || '';
+  // Get file extension
+  const extension = fileName.split('.').pop();
+  return (extension || '').toLowerCase();
 };

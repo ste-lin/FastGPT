@@ -26,13 +26,14 @@ usageMatchRegex:
   - "[^\\w\\d]workflowT\\(['\"`]({key})['\"`]"
   - "[^\\w\\d]userT\\(['\"`]({key})['\"`]"
   - "[^\\w\\d]chatT\\(['\"`]({key})['\"`]"
+  - "[^\\w\\d]i18nT\\(['\"`]({key})['\"`]"
 
 # A RegEx to set a custom scope range. This scope will be used as a prefix when detecting keys
 # and works like how the i18next framework identifies the namespace scope from the
 # useTranslation() hook.
 # You should unescape RegEx strings in order to fit in the YAML file
 # To help with this, you can use https://www.freeformatter.com/json-escape.html
-scopeRangeRegex: "useTranslation\\(\\s*\\[?\\s*['\"`](.*?)['\"`]"
+scopeRangeRegex: "([^:]+):"
 
 # An array of strings containing refactor templates.
 # The "$1" will be replaced by the keypath specified.
@@ -41,6 +42,5 @@ scopeRangeRegex: "useTranslation\\(\\s*\\[?\\s*['\"`](.*?)['\"`]"
 # refactorTemplates:
 #  - i18n.get("$1")
 
-
 # If set to true, only enables this custom framework (will disable all built-in frameworks)
-monopoly: true
+monopoly: false

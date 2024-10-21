@@ -1,101 +1,108 @@
-import type { ModuleDispatchProps } from '@fastgpt/global/core/workflow/type/index.d';
+import type { ModuleDispatchProps } from '@fastgpt/global/core/workflow/runtime/type';
 import { dispatchWorkFlow } from '../index';
 import { FlowNodeTypeEnum } from '@fastgpt/global/core/workflow/node/constant';
-import { NodeInputKeyEnum } from '@fastgpt/global/core/workflow/constants';
 import { DispatchNodeResponseKeyEnum } from '@fastgpt/global/core/workflow/runtime/constants';
-import { getPluginRuntimeById } from '../../../plugin/controller';
-import { authPluginCanUse } from '../../../../support/permission/auth/plugin';
+import { getChildAppRuntimeById } from '../../../app/plugin/controller';
 import {
-  getDefaultEntryNodeIds,
+  getWorkflowEntryNodeIds,
   initWorkflowEdgeStatus,
   storeNodes2RuntimeNodes
 } from '@fastgpt/global/core/workflow/runtime/utils';
 import { DispatchNodeResultType } from '@fastgpt/global/core/workflow/runtime/type';
-import { updateToolInputValue } from '../agent/runTool/utils';
-import { replaceVariable } from '@fastgpt/global/common/string/tools';
+import { authPluginByTmbId } from '../../../../support/permission/app/auth';
+import { ReadPermissionVal } from '@fastgpt/global/support/permission/constant';
+import { computedPluginUsage } from '../../../app/plugin/utils';
+import { filterSystemVariables } from '../utils';
+import { chatValue2RuntimePrompt } from '@fastgpt/global/core/chat/adapt';
+import { getPluginRunUserQuery } from '@fastgpt/global/core/workflow/utils';
+import { getPluginInputsFromStoreNodes } from '@fastgpt/global/core/app/plugin/utils';
+import { NodeInputKeyEnum } from '@fastgpt/global/core/workflow/constants';
 
 type RunPluginProps = ModuleDispatchProps<{
+  [NodeInputKeyEnum.forbidStream]?: boolean;
   [key: string]: any;
 }>;
 type RunPluginResponse = DispatchNodeResultType<{}>;
 
 export const dispatchRunPlugin = async (props: RunPluginProps): Promise<RunPluginResponse> => {
   const {
-    node: { pluginId },
-    mode,
-    teamId,
-    tmbId,
-    params: data
+    node: { pluginId, version },
+    runningAppInfo,
+    query,
+    params: { system_forbid_stream = false, ...data } // Plugin input
   } = props;
 
   if (!pluginId) {
     return Promise.reject('pluginId can not find');
   }
 
-  await authPluginCanUse({ id: pluginId, teamId, tmbId });
-  const plugin = await getPluginRuntimeById(pluginId);
+  const { files } = chatValue2RuntimePrompt(query);
 
-  // concat dynamic inputs
-  const inputModule = plugin.nodes.find(
-    (item) => item.flowNodeType === FlowNodeTypeEnum.pluginInput
-  );
-  if (!inputModule) return Promise.reject('Plugin error, It has no set input.');
-  const hasDynamicInput = inputModule.inputs.find(
-    (input) => input.key === NodeInputKeyEnum.addInputParam
-  );
+  // auth plugin
+  const pluginData = await authPluginByTmbId({
+    appId: pluginId,
+    tmbId: runningAppInfo.tmbId,
+    per: ReadPermissionVal
+  });
 
-  const startParams: Record<string, any> = (() => {
-    if (!hasDynamicInput) return data;
+  const plugin = await getChildAppRuntimeById(pluginId, version);
 
-    const params: Record<string, any> = {
-      [NodeInputKeyEnum.addInputParam]: {}
+  const outputFilterMap =
+    plugin.nodes
+      .find((node) => node.flowNodeType === FlowNodeTypeEnum.pluginOutput)
+      ?.inputs.reduce<Record<string, boolean>>((acc, cur) => {
+        acc[cur.key] = cur.isToolOutput === false ? false : true;
+        return acc;
+      }, {}) ?? {};
+
+  const runtimeNodes = storeNodes2RuntimeNodes(
+    plugin.nodes,
+    getWorkflowEntryNodeIds(plugin.nodes)
+  ).map((node) => {
+    // Update plugin input value
+    if (node.flowNodeType === FlowNodeTypeEnum.pluginInput) {
+      return {
+        ...node,
+        showStatus: false,
+        inputs: node.inputs.map((input) => ({
+          ...input,
+          value: data[input.key] ?? input.value
+        }))
+      };
+    }
+    return {
+      ...node,
+      showStatus: false
     };
+  });
+  const runtimeVariables = {
+    ...filterSystemVariables(props.variables),
+    appId: String(plugin.id)
+  };
 
-    for (const key in data) {
-      if (key === NodeInputKeyEnum.addInputParam) continue;
-
-      const input = inputModule.inputs.find((input) => input.key === key);
-      if (input) {
-        params[key] = data[key];
-      } else {
-        params[NodeInputKeyEnum.addInputParam][key] = data[key];
-      }
-    }
-
-    return params;
-  })();
-
-  // replace input by dynamic variables
-  if (hasDynamicInput) {
-    for (const key in startParams) {
-      if (key === NodeInputKeyEnum.addInputParam) continue;
-      startParams[key] = replaceVariable(
-        startParams[key],
-        startParams[NodeInputKeyEnum.addInputParam]
-      );
-    }
-  }
-
-  const { flowResponses, flowUsages, assistantResponses } = await dispatchWorkFlow({
+  const { flowResponses, flowUsages, assistantResponses, runTimes } = await dispatchWorkFlow({
     ...props,
-    runtimeNodes: storeNodes2RuntimeNodes(plugin.nodes, getDefaultEntryNodeIds(plugin.nodes)).map(
-      (node) => {
-        if (node.flowNodeType === FlowNodeTypeEnum.pluginInput) {
-          return {
-            ...node,
-            showStatus: false,
-            inputs: updateToolInputValue({
-              inputs: node.inputs,
-              params: startParams
-            })
-          };
+    // Rewrite stream mode
+    ...(system_forbid_stream
+      ? {
+          stream: false,
+          workflowStreamResponse: undefined
         }
-        return {
-          ...node,
-          showStatus: false
-        };
-      }
-    ),
+      : {}),
+    runningAppInfo: {
+      id: String(plugin.id),
+      // 如果是系统插件，则使用当前团队的 teamId 和 tmbId
+      teamId: plugin.teamId || runningAppInfo.teamId,
+      tmbId: pluginData?.tmbId || runningAppInfo.tmbId
+    },
+    variables: runtimeVariables,
+    query: getPluginRunUserQuery({
+      pluginInputs: getPluginInputsFromStoreNodes(plugin.nodes),
+      variables: runtimeVariables,
+      files
+    }).value,
+    chatConfig: {},
+    runtimeNodes,
     runtimeEdges: initWorkflowEdgeStatus(plugin.edges)
   });
 
@@ -105,30 +112,40 @@ export const dispatchRunPlugin = async (props: RunPluginProps): Promise<RunPlugi
     output.moduleLogo = plugin.avatar;
   }
 
+  const usagePoints = await computedPluginUsage(plugin, flowUsages);
+  const childStreamResponse = system_forbid_stream ? false : props.stream;
+
   return {
-    assistantResponses,
+    // 嵌套运行时，如果 childApp stream=false，实际上不会有任何内容输出给用户，所以不需要存储
+    assistantResponses: childStreamResponse ? assistantResponses : [],
     // responseData, // debug
+    [DispatchNodeResponseKeyEnum.runTimes]: runTimes,
     [DispatchNodeResponseKeyEnum.nodeResponse]: {
       moduleLogo: plugin.avatar,
-      totalPoints: flowResponses.reduce((sum, item) => sum + (item.totalPoints || 0), 0),
+      totalPoints: usagePoints,
       pluginOutput: output?.pluginOutput,
-      pluginDetail:
-        mode === 'test' && plugin.teamId === teamId
-          ? flowResponses.filter((item) => {
-              const filterArr = [FlowNodeTypeEnum.pluginOutput];
-              return !filterArr.includes(item.moduleType as any);
-            })
-          : undefined
+      pluginDetail: pluginData?.permission?.hasWritePer // Not system plugin
+        ? flowResponses.filter((item) => {
+            const filterArr = [FlowNodeTypeEnum.pluginOutput];
+            return !filterArr.includes(item.moduleType as any);
+          })
+        : undefined
     },
     [DispatchNodeResponseKeyEnum.nodeDispatchUsages]: [
       {
         moduleName: plugin.name,
-        totalPoints: flowUsages.reduce((sum, item) => sum + (item.totalPoints || 0), 0),
-        model: plugin.name,
+        totalPoints: usagePoints,
         tokens: 0
       }
     ],
-    [DispatchNodeResponseKeyEnum.toolResponses]: output?.pluginOutput ? output.pluginOutput : {},
+    [DispatchNodeResponseKeyEnum.toolResponses]: output?.pluginOutput
+      ? Object.keys(output.pluginOutput)
+          .filter((key) => outputFilterMap[key])
+          .reduce<Record<string, any>>((acc, key) => {
+            acc[key] = output.pluginOutput![key];
+            return acc;
+          }, {})
+      : null,
     ...(output ? output.pluginOutput : {})
   };
 };

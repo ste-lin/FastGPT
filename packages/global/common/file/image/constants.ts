@@ -7,6 +7,7 @@ export enum MongoImageTypeEnum {
   datasetAvatar = 'datasetAvatar',
   userAvatar = 'userAvatar',
   teamAvatar = 'teamAvatar',
+  groupAvatar = 'groupAvatar',
 
   chatImage = 'chatImage',
   collectionImage = 'collectionImage'
@@ -36,6 +37,10 @@ export const mongoImageTypeMap = {
     label: 'teamAvatar',
     unique: true
   },
+  [MongoImageTypeEnum.groupAvatar]: {
+    label: 'groupAvatar',
+    unique: true
+  },
 
   [MongoImageTypeEnum.chatImage]: {
     label: 'chatImage',
@@ -53,4 +58,5 @@ export const uniqueImageTypeList = Object.entries(mongoImageTypeMap)
 
 export const FolderIcon = 'file/fill/folder';
 export const FolderImgUrl = '/imgs/files/folder.svg';
+export const HttpPluginImgUrl = '/imgs/app/httpPluginFill.svg';
 export const HttpImgUrl = '/imgs/workflow/http.png';

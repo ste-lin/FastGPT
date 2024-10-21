@@ -19,16 +19,16 @@ type LoginStoreType = { provider: `${OAuthEnum}`; lastRoute: string; state: stri
 type State = {
   initd: boolean;
   setInitd: () => void;
+
   lastRoute: string;
   setLastRoute: (e: string) => void;
+  lastAppListRouteType?: string;
+  setLastAppListRouteType: (e?: string) => void;
+
   loginStore?: LoginStoreType;
   setLoginStore: (e: LoginStoreType) => void;
   loading: boolean;
   setLoading: (val: boolean) => null;
-  screenWidth: number;
-  setScreenWidth: (val: number) => void;
-  isPc?: boolean;
-  initIsPc(val: boolean): void;
   gitStar: number;
   loadGitStar: () => Promise<void>;
 
@@ -45,12 +45,20 @@ type State = {
   reRankModelList: ReRankModelItemType[];
   whisperModel?: WhisperModelType;
   initStaticData: (e: InitDateResponse) => void;
+  appType?: string;
+  setAppType: (e?: string) => void;
 };
 
 export const useSystemStore = create<State>()(
   devtools(
     persist(
       immer((set, get) => ({
+        appType: undefined,
+        setAppType(e) {
+          set((state) => {
+            state.appType = e;
+          });
+        },
         initd: false,
         setInitd() {
           set((state) => {
@@ -61,6 +69,12 @@ export const useSystemStore = create<State>()(
         setLastRoute(e) {
           set((state) => {
             state.lastRoute = e;
+          });
+        },
+        lastAppListRouteType: undefined,
+        setLastAppListRouteType(e) {
+          set((state) => {
+            state.lastAppListRouteType = e;
           });
         },
         loginStore: undefined,
@@ -76,23 +90,10 @@ export const useSystemStore = create<State>()(
           });
           return null;
         },
-        screenWidth: 600,
-        setScreenWidth(val: number) {
-          set((state) => {
-            state.screenWidth = val;
-            state.isPc = val < 900 ? false : true;
-          });
-        },
-        isPc: undefined,
-        initIsPc(val: boolean) {
-          if (get().isPc !== undefined) return;
 
-          set((state) => {
-            state.isPc = val;
-          });
-        },
-        gitStar: 9300,
+        gitStar: 15600,
         async loadGitStar() {
+          if (!get().feConfigs?.show_git) return;
           try {
             const { data: git } = await axios.get('https://api.github.com/repos/labring/FastGPT');
 

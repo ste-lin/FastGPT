@@ -15,9 +15,9 @@ import {
   Input,
   Switch,
   Link,
-  IconButton
+  IconButton,
+  HStack
 } from '@chakra-ui/react';
-import { QuestionOutlineIcon } from '@chakra-ui/icons';
 import MyIcon from '@fastgpt/web/components/common/Icon';
 import { useLoading } from '@fastgpt/web/hooks/useLoading';
 import { useQuery } from '@tanstack/react-query';
@@ -37,7 +37,6 @@ import { PublishChannelEnum } from '@fastgpt/global/support/outLink/constant';
 import { useTranslation } from 'next-i18next';
 import { useToast } from '@fastgpt/web/hooks/useToast';
 import { useSystemStore } from '@/web/common/system/useSystemStore';
-import MyTooltip from '@/components/MyTooltip';
 import MyModal from '@fastgpt/web/components/common/MyModal';
 import dayjs from 'dayjs';
 import { getDocPath } from '@/web/common/system/doc';
@@ -45,6 +44,10 @@ import dynamic from 'next/dynamic';
 import MyMenu from '@fastgpt/web/components/common/MyMenu';
 import { useConfirm } from '@fastgpt/web/hooks/useConfirm';
 import { useI18n } from '@/web/context/I18n';
+import QuestionTip from '@fastgpt/web/components/common/MyTooltip/QuestionTip';
+import EmptyTip from '@fastgpt/web/components/common/EmptyTip';
+import FormLabel from '@fastgpt/web/components/common/MyBox/FormLabel';
+import MyBox from '@fastgpt/web/components/common/MyBox';
 
 const SelectUsingWayModal = dynamic(() => import('./SelectUsingWayModal'));
 
@@ -57,7 +60,7 @@ const Share = ({ appId }: { appId: string; type: PublishChannelEnum }) => {
   const [selectedLinkData, setSelectedLinkData] = useState<OutLinkSchema>();
   const { toast } = useToast();
   const { ConfirmModal, openConfirm } = useConfirm({
-    content: t('support.outlink.Delete link tip'),
+    content: t('common:support.outlink.Delete link tip'),
     type: 'delete'
   });
 
@@ -70,14 +73,14 @@ const Share = ({ appId }: { appId: string; type: PublishChannelEnum }) => {
   );
 
   return (
-    <Box position={'relative'} pt={3} px={5} minH={'50vh'}>
+    <MyBox h={'100%'} isLoading={isFetching} position={'relative'}>
       <Flex justifyContent={'space-between'}>
-        <Box fontWeight={'bold'} fontSize={['md', 'xl']}>
-          {t('core.app.Share link')}
-          <MyTooltip forceShow label={t('core.app.Share link desc detail')}>
-            <QuestionOutlineIcon ml={1} />
-          </MyTooltip>
-        </Box>
+        <HStack>
+          <Box color={'myGray.900'} fontSize={'lg'}>
+            {t('common:core.app.Share link')}
+          </Box>
+          <QuestionTip label={t('common:core.app.Share link desc detail')} />
+        </HStack>
         <Button
           variant={'whitePrimary'}
           colorScheme={'blue'}
@@ -85,33 +88,33 @@ const Share = ({ appId }: { appId: string; type: PublishChannelEnum }) => {
           {...(shareChatList.length >= 10
             ? {
                 isDisabled: true,
-                title: t('core.app.share.Amount limit tip')
+                title: t('common:core.app.share.Amount limit tip')
               }
             : {})}
           onClick={() => setEditLinkData(defaultOutLinkForm)}
         >
-          {t('core.app.share.Create link')}
+          {t('common:core.app.share.Create link')}
         </Button>
       </Flex>
       <TableContainer mt={3}>
         <Table variant={'simple'} w={'100%'} overflowX={'auto'} fontSize={'sm'}>
           <Thead>
             <Tr>
-              <Th>{t('common.Name')}</Th>
+              <Th>{t('common:common.Name')}</Th>
               {feConfigs?.isPlus && (
                 <>
-                  <Th>{t('common.Expired Time')}</Th>
+                  <Th>{t('common:common.Expired Time')}</Th>
                 </>
               )}
-              <Th>{t('support.outlink.Usage points')}</Th>
-              <Th>{t('core.app.share.Is response quote')}</Th>
+              <Th>{t('common:support.outlink.Usage points')}</Th>
+              <Th>{t('common:core.app.share.Is response quote')}</Th>
               {feConfigs?.isPlus && (
                 <>
-                  <Th>{t('core.app.share.Ip limit title')}</Th>
-                  <Th>{t('core.app.share.Role check')}</Th>
+                  <Th>{t('common:core.app.share.Ip limit title')}</Th>
+                  <Th>{t('common:core.app.share.Role check')}</Th>
                 </>
               )}
-              <Th>{t('common.Last use time')}</Th>
+              <Th>{t('common:common.Last use time')}</Th>
               <Th></Th>
             </Tr>
           </Thead>
@@ -134,7 +137,7 @@ const Share = ({ appId }: { appId: string; type: PublishChannelEnum }) => {
                     ? `${
                         item.limit?.maxUsagePoints && item.limit.maxUsagePoints > -1
                           ? ` / ${item.limit.maxUsagePoints}`
-                          : ` / ${t('common.Unlimited')}`
+                          : ` / ${t('common:common.Unlimited')}`
                       }`
                     : ''}
                 </Td>
@@ -146,7 +149,9 @@ const Share = ({ appId }: { appId: string; type: PublishChannelEnum }) => {
                     <Th>{item?.limit?.hookUrl ? '✔' : '✖'}</Th>
                   </>
                 )}
-                <Td>{item.lastTime ? formatTimeToChatTime(item.lastTime) : t('common.Un used')}</Td>
+                <Td>
+                  {item.lastTime ? formatTimeToChatTime(item.lastTime) : t('common:common.Un used')}
+                </Td>
                 <Td display={'flex'} alignItems={'center'}>
                   <Button
                     onClick={() => setSelectedLinkData(item as OutLinkSchema)}
@@ -154,7 +159,7 @@ const Share = ({ appId }: { appId: string; type: PublishChannelEnum }) => {
                     mr={3}
                     variant={'whitePrimary'}
                   >
-                    {t('core.app.outLink.Select Mode')}
+                    {t('common:core.app.outLink.Select Mode')}
                   </Button>
                   <MyMenu
                     Button={
@@ -168,30 +173,35 @@ const Share = ({ appId }: { appId: string; type: PublishChannelEnum }) => {
                     }
                     menuList={[
                       {
-                        label: t('common.Edit'),
-                        icon: 'edit',
-                        onClick: () =>
-                          setEditLinkData({
-                            _id: item._id,
-                            name: item.name,
-                            responseDetail: item.responseDetail,
-                            limit: item.limit
-                          })
-                      },
-                      {
-                        label: t('common.Delete'),
-                        icon: 'delete',
-                        type: 'danger',
-                        onClick: openConfirm(async () => {
-                          setIsLoading(true);
-                          try {
-                            await delShareChatById(item._id);
-                            refetchShareChatList();
-                          } catch (error) {
-                            console.log(error);
+                        children: [
+                          {
+                            label: t('common:common.Edit'),
+                            icon: 'edit',
+                            onClick: () =>
+                              setEditLinkData({
+                                _id: item._id,
+                                name: item.name,
+                                responseDetail: item.responseDetail,
+                                limit: item.limit
+                              })
+                          },
+                          {
+                            label: t('common:common.Delete'),
+                            icon: 'delete',
+                            type: 'danger',
+                            onClick: () =>
+                              openConfirm(async () => {
+                                setIsLoading(true);
+                                try {
+                                  await delShareChatById(item._id);
+                                  refetchShareChatList();
+                                } catch (error) {
+                                  console.log(error);
+                                }
+                                setIsLoading(false);
+                              })()
                           }
-                          setIsLoading(false);
-                        })
+                        ]
                       }
                     ]}
                   />
@@ -203,12 +213,7 @@ const Share = ({ appId }: { appId: string; type: PublishChannelEnum }) => {
       </TableContainer>
 
       {shareChatList.length === 0 && !isFetching && (
-        <Flex h={'100%'} flexDirection={'column'} alignItems={'center'} pt={'10vh'}>
-          <MyIcon name="empty" w={'48px'} h={'48px'} color={'transparent'} />
-          <Box mt={2} color={'myGray.500'}>
-            {t('core.app.share.Not share link')}
-          </Box>
-        </Flex>
+        <EmptyTip text={t('common:core.app.share.Not share link')} />
       )}
       {!!editLinkData && (
         <EditLinkModal
@@ -217,14 +222,14 @@ const Share = ({ appId }: { appId: string; type: PublishChannelEnum }) => {
           defaultData={editLinkData}
           onCreate={(id) => {
             const url = `${location.origin}/chat/share?shareId=${id}`;
-            copyData(url, t('core.app.share.Create link tip'));
+            copyData(url, t('common:core.app.share.Create link tip'));
             refetchShareChatList();
             setEditLinkData(undefined);
           }}
           onEdit={() => {
             toast({
               status: 'success',
-              title: t('common.Update Successful')
+              title: t('common:common.Update Successful')
             });
             refetchShareChatList();
             setEditLinkData(undefined);
@@ -239,8 +244,7 @@ const Share = ({ appId }: { appId: string; type: PublishChannelEnum }) => {
         />
       )}
       <ConfirmModal />
-      <Loading loading={isFetching} fixed={false} />
-    </Box>
+    </MyBox>
   );
 };
 
@@ -280,14 +284,14 @@ function EditLinkModal({
         appId,
         type
       }),
-    errorToast: t('common.Create Failed'),
+    errorToast: t('common:common.Create Failed'),
     onSuccess: onCreate
   });
   const { mutate: onclickUpdate, isLoading: updating } = useRequest({
     mutationFn: (e: OutLinkEditType) => {
       return putShareChat(e);
     },
-    errorToast: t('common.Update Failed'),
+    errorToast: t('common:common.Update Failed'),
     onSuccess: onEdit
   });
 
@@ -295,25 +299,25 @@ function EditLinkModal({
     <MyModal
       isOpen={true}
       iconSrc="/imgs/modal/shareFill.svg"
-      title={isEdit ? publishT('Edit Link') : publishT('Create Link')}
+      title={isEdit ? publishT('edit_link') : publishT('create_link')}
     >
       <ModalBody>
         <Flex alignItems={'center'}>
-          <Box flex={'0 0 90px'}>{t('Name')}</Box>
+          <FormLabel flex={'0 0 90px'}>{t('common:Name')}</FormLabel>
           <Input
-            placeholder={publishT('Link Name')}
+            placeholder={publishT('link_name')}
             maxLength={20}
             {...register('name', {
-              required: t('common.Name is empty') || 'Name is empty'
+              required: t('common:common.name_is_empty') || 'name_is_empty'
             })}
           />
         </Flex>
         {feConfigs?.isPlus && (
           <>
             <Flex alignItems={'center'} mt={4}>
-              <Flex flex={'0 0 90px'} alignItems={'center'}>
-                {t('common.Expired Time')}
-              </Flex>
+              <FormLabel flex={'0 0 90px'} alignItems={'center'}>
+                {t('common:common.Expired Time')}
+              </FormLabel>
               <Input
                 type="datetime-local"
                 defaultValue={
@@ -328,10 +332,8 @@ function EditLinkModal({
             </Flex>
             <Flex alignItems={'center'} mt={4}>
               <Flex flex={'0 0 90px'} alignItems={'center'}>
-                QPM
-                <MyTooltip label={publishT('QPM Tips' || '')}>
-                  <QuestionOutlineIcon ml={1} />
-                </MyTooltip>
+                <FormLabel>QPM</FormLabel>
+                <QuestionTip ml={1} label={publishT('qpm_tips' || '')}></QuestionTip>
               </Flex>
               <Input
                 max={1000}
@@ -339,16 +341,17 @@ function EditLinkModal({
                   min: 0,
                   max: 1000,
                   valueAsNumber: true,
-                  required: publishT('QPM is empty') || ''
+                  required: publishT('qpm_is_empty') || ''
                 })}
               />
             </Flex>
             <Flex alignItems={'center'} mt={4}>
               <Flex flex={'0 0 90px'} alignItems={'center'}>
-                {t('support.outlink.Max usage points')}
-                <MyTooltip label={t('support.outlink.Max usage points tip')}>
-                  <QuestionOutlineIcon ml={1} />
-                </MyTooltip>
+                <FormLabel>{t('common:support.outlink.Max usage points')}</FormLabel>
+                <QuestionTip
+                  ml={1}
+                  label={t('common:support.outlink.Max usage points tip')}
+                ></QuestionTip>
               </Flex>
               <Input
                 {...register('limit.maxUsagePoints', {
@@ -362,13 +365,11 @@ function EditLinkModal({
 
             <Flex alignItems={'center'} mt={4}>
               <Flex flex={'0 0 90px'} alignItems={'center'}>
-                {publishT('token auth')}
-                <MyTooltip label={publishT('token auth Tips') || ''}>
-                  <QuestionOutlineIcon ml={1} />
-                </MyTooltip>
+                <FormLabel>{publishT('token_auth')}</FormLabel>
+                <QuestionTip ml={1} label={publishT('token_auth_tips') || ''}></QuestionTip>
               </Flex>
               <Input
-                placeholder={publishT('token auth Tips') || ''}
+                placeholder={publishT('token_auth_tips') || ''}
                 fontSize={'sm'}
                 {...register('limit.hookUrl')}
               />
@@ -376,34 +377,35 @@ function EditLinkModal({
             <Link
               href={getDocPath('/docs/development/openapi/share')}
               target={'_blank'}
-              fontSize={'sm'}
+              fontSize={'xs'}
               color={'myGray.500'}
             >
-              {publishT('token auth use cases')}
+              {publishT('token_auth_use_cases')}
             </Link>
           </>
         )}
 
         <Flex alignItems={'center'} mt={4}>
           <Flex flex={'0 0 90px'} alignItems={'center'}>
-            {t('support.outlink.share.Response Quote')}
-            <MyTooltip label={t('support.outlink.share.Response Quote tips' || '')}>
-              <QuestionOutlineIcon ml={1} />
-            </MyTooltip>
+            <FormLabel>{t('common:support.outlink.share.Response Quote')}</FormLabel>
+            <QuestionTip
+              ml={1}
+              label={t('support.outlink.share.Response Quote tips' || '')}
+            ></QuestionTip>
           </Flex>
-          <Switch {...register('responseDetail')} size={'lg'} />
+          <Switch {...register('responseDetail')} />
         </Flex>
       </ModalBody>
 
       <ModalFooter>
         <Button variant={'whiteBase'} mr={3} onClick={onClose}>
-          {t('common.Close')}
+          {t('common:common.Close')}
         </Button>
         <Button
           isLoading={creating || updating}
           onClick={submitShareChat((data) => (isEdit ? onclickUpdate(data) : onclickCreate(data)))}
         >
-          {t('common.Confirm')}
+          {t('common:common.Confirm')}
         </Button>
       </ModalFooter>
     </MyModal>

@@ -1,6 +1,7 @@
+import { i18nT } from '../../../../../web/i18n/utils';
 import { FlowNodeTemplateTypeEnum } from '../../constants';
 import { FlowNodeTypeEnum } from '../../node/constant';
-import { FlowNodeTemplateType } from '../../type';
+import { FlowNodeTemplateType } from '../../type/node';
 import { getHandleConfig } from '../utils';
 
 export const PluginOutputModule: FlowNodeTemplateType = {
@@ -11,9 +12,9 @@ export const PluginOutputModule: FlowNodeTemplateType = {
   targetHandle: getHandleConfig(false, false, false, true),
   unique: true,
   forbidDelete: true,
-  avatar: '/imgs/workflow/output.png',
-  name: '自定义插件输出',
-  intro: '自定义配置外部输出，使用插件时，仅暴露自定义配置的输出',
+  avatar: 'core/workflow/template/pluginOutput',
+  name: i18nT('workflow:template.plugin_output'),
+  intro: i18nT('workflow:intro_custom_plugin_output'),
   showStatus: false,
   version: '481',
   inputs: [],

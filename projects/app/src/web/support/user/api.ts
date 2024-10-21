@@ -15,6 +15,7 @@ export const sendAuthCode = (data: {
   username: string;
   type: `${UserAuthTypeEnum}`;
   googleToken: string;
+  captcha: string;
 }) => POST(`/proApi/support/user/inform/sendAuthCode`, data);
 
 export const getTokenLogin = () =>
@@ -23,6 +24,7 @@ export const oauthLogin = (params: OauthLoginProps) =>
   POST<ResLogin>('/proApi/support/user/account/login/oauth', params);
 export const postFastLogin = (params: FastLoginProps) =>
   POST<ResLogin>('/proApi/support/user/account/login/fastLogin', params);
+export const ssoLogin = (params: any) => GET<ResLogin>('/proApi/support/user/account/sso', params);
 
 export const postRegister = ({
   username,
@@ -63,6 +65,9 @@ export const updatePasswordByOld = ({ oldPsw, newPsw }: { oldPsw: string; newPsw
     newPsw: hashStr(newPsw)
   });
 
+export const updateNotificationAccount = (data: { account: string; verifyCode: string }) =>
+  PUT('/proApi/support/user/team/updateNotificationAccount', data);
+
 export const postLogin = ({ password, ...props }: PostLoginProps) =>
   POST<ResLogin>('/support/user/account/loginByPassword', {
     ...props,
@@ -78,3 +83,8 @@ export const getWXLoginQR = () =>
 
 export const getWXLoginResult = (code: string) =>
   GET<ResLogin>(`/proApi/support/user/account/login/wx/getResult`, { code });
+
+export const getCaptchaPic = (username: string) =>
+  GET<{
+    captchaImage: string;
+  }>('/proApi/support/user/account/captcha/getImgCaptcha', { username });

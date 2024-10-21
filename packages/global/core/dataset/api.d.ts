@@ -1,20 +1,21 @@
 import { DatasetDataIndexItemType, DatasetSchemaType } from './type';
 import { TrainingModeEnum, DatasetCollectionTypeEnum } from './constants';
 import type { LLMModelItemType } from '../ai/model.d';
+import { ParentIdType } from 'common/parentFolder/type';
 
 /* ================= dataset ===================== */
 export type DatasetUpdateBody = {
   id: string;
-  parentId?: string;
+  parentId?: ParentIdType;
   name?: string;
   avatar?: string;
   intro?: string;
-  permission?: DatasetSchemaType['permission'];
   agentModel?: LLMModelItemType;
   status?: DatasetSchemaType['status'];
 
   websiteConfig?: DatasetSchemaType['websiteConfig'];
   externalReadUrl?: DatasetSchemaType['externalReadUrl'];
+  defaultPermission?: DatasetSchemaType['defaultPermission'];
 };
 
 /* ================= collection ===================== */
@@ -71,6 +72,23 @@ export type ExternalFileCreateDatasetCollectionParams = ApiCreateDatasetCollecti
   externalFileId?: string;
   externalFileUrl: string;
   filename?: string;
+};
+
+/* ================= tag ===================== */
+export type CreateDatasetCollectionTagParams = {
+  datasetId: string;
+  tag: string;
+};
+export type AddTagsToCollectionsParams = {
+  originCollectionIds: string[];
+  collectionIds: string[];
+  datasetId: string;
+  tag: string;
+};
+export type UpdateDatasetCollectionTagParams = {
+  datasetId: string;
+  tagId: string;
+  tag: string;
 };
 
 /* ================= data ===================== */

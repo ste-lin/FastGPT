@@ -1,4 +1,4 @@
-import { TeamItemType, TeamMemberWithTeamSchema } from '@fastgpt/global/support/user/team/type';
+import { TeamTmbItemType, TeamMemberWithTeamSchema } from '@fastgpt/global/support/user/team/type';
 import { ClientSession, Types } from '../../../common/mongo';
 import {
   TeamMemberRoleEnum,
@@ -7,12 +7,26 @@ import {
 } from '@fastgpt/global/support/user/team/constant';
 import { MongoTeamMember } from './teamMemberSchema';
 import { MongoTeam } from './teamSchema';
+import { UpdateTeamProps } from '@fastgpt/global/support/user/team/controller';
+import { getResourcePermission } from '../../permission/controller';
+import { PerResourceTypeEnum } from '@fastgpt/global/support/permission/constant';
+import { TeamPermission } from '@fastgpt/global/support/permission/user/controller';
+import { TeamDefaultPermissionVal } from '@fastgpt/global/support/permission/user/constant';
+import { MongoMemberGroupModel } from '../../permission/memberGroup/memberGroupSchema';
+import { mongoSessionRun } from '../../../common/mongo/sessionRun';
+import { DefaultGroupName } from '@fastgpt/global/support/user/team/group/constant';
 
-async function getTeamMember(match: Record<string, any>): Promise<TeamItemType> {
+async function getTeamMember(match: Record<string, any>): Promise<TeamTmbItemType> {
   const tmb = (await MongoTeamMember.findOne(match).populate('teamId')) as TeamMemberWithTeamSchema;
   if (!tmb) {
     return Promise.reject('member not exist');
   }
+
+  const Per = await getResourcePermission({
+    resourceType: PerResourceTypeEnum.team,
+    teamId: tmb.teamId._id,
+    tmbId: tmb._id
+  });
 
   return {
     userId: String(tmb.userId),
@@ -26,9 +40,12 @@ async function getTeamMember(match: Record<string, any>): Promise<TeamItemType> 
     role: tmb.role,
     status: tmb.status,
     defaultTeam: tmb.defaultTeam,
-    canWrite: tmb.role !== TeamMemberRoleEnum.visitor,
     lafAccount: tmb.teamId.lafAccount,
-    defaultPermission: tmb.teamId.defaultPermission
+    permission: new TeamPermission({
+      per: Per ?? TeamDefaultPermissionVal,
+      isOwner: tmb.role === TeamMemberRoleEnum.owner
+    }),
+    notificationAccount: tmb.teamId.notificationAccount
   };
 }
 
@@ -51,6 +68,7 @@ export async function getUserDefaultTeam({ userId }: { userId: string }) {
     defaultTeam: true
   });
 }
+
 export async function createDefaultTeam({
   userId,
   teamName = 'My Team',
@@ -71,7 +89,7 @@ export async function createDefaultTeam({
   });
 
   if (!tmb) {
-    // create
+    // create team
     const [{ _id: insertedId }] = await MongoTeam.create(
       [
         {
@@ -84,7 +102,8 @@ export async function createDefaultTeam({
       ],
       { session }
     );
-    await MongoTeamMember.create(
+    // create team member
+    const [tmb] = await MongoTeamMember.create(
       [
         {
           teamId: insertedId,
@@ -98,7 +117,19 @@ export async function createDefaultTeam({
       ],
       { session }
     );
-    console.log('create default team', userId);
+    // create default group
+    await MongoMemberGroupModel.create(
+      [
+        {
+          teamId: tmb.teamId,
+          name: DefaultGroupName,
+          avatar
+        }
+      ],
+      { session }
+    );
+    console.log('create default team and group', userId);
+    return tmb;
   } else {
     console.log('default team exist', userId);
     await MongoTeam.findByIdAndUpdate(tmb.teamId, {
@@ -107,4 +138,39 @@ export async function createDefaultTeam({
       }
     });
   }
+}
+
+export async function updateTeam({
+  teamId,
+  name,
+  avatar,
+  teamDomain,
+  lafAccount
+}: UpdateTeamProps & { teamId: string }) {
+  return mongoSessionRun(async (session) => {
+    await MongoTeam.findByIdAndUpdate(
+      teamId,
+      {
+        name,
+        avatar,
+        teamDomain,
+        lafAccount
+      },
+      { session }
+    );
+
+    // update default group
+    if (avatar) {
+      await MongoMemberGroupModel.updateOne(
+        {
+          teamId: teamId,
+          name: DefaultGroupName
+        },
+        {
+          avatar
+        },
+        { session }
+      );
+    }
+  });
 }

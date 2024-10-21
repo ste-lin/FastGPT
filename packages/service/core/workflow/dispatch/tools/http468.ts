@@ -1,4 +1,4 @@
-import type { ModuleDispatchProps } from '@fastgpt/global/core/workflow/type/index.d';
+import type { ModuleDispatchProps } from '@fastgpt/global/core/workflow/runtime/type';
 import {
   NodeInputKeyEnum,
   NodeOutputKeyEnum,
@@ -9,13 +9,15 @@ import {
   SseResponseEventEnum
 } from '@fastgpt/global/core/workflow/runtime/constants';
 import axios from 'axios';
-import { valueTypeFormat } from '../utils';
+import { formatHttpError, valueTypeFormat } from '../utils';
 import { SERVICE_LOCAL_HOST } from '../../../../common/system/tools';
 import { addLog } from '../../../../common/system/log';
 import { DispatchNodeResultType } from '@fastgpt/global/core/workflow/runtime/type';
 import { getErrText } from '@fastgpt/global/common/error/utils';
-import { responseWrite } from '../../../../common/response';
 import { textAdaptGptResponse } from '@fastgpt/global/core/workflow/runtime/utils';
+import { getSystemPluginCb } from '../../../../../plugins/register';
+import { ContentTypes } from '@fastgpt/global/core/workflow/constants';
+import { replaceEditorVariable } from '@fastgpt/global/core/workflow/utils';
 
 type PropsArrType = {
   key: string;
@@ -29,7 +31,10 @@ type HttpRequestProps = ModuleDispatchProps<{
   [NodeInputKeyEnum.httpHeaders]: PropsArrType[];
   [NodeInputKeyEnum.httpParams]: PropsArrType[];
   [NodeInputKeyEnum.httpJsonBody]: string;
+  [NodeInputKeyEnum.httpFormBody]: PropsArrType[];
+  [NodeInputKeyEnum.httpContentType]: ContentTypes;
   [NodeInputKeyEnum.addInputParam]: Record<string, any>;
+  [NodeInputKeyEnum.httpTimeout]?: number;
   [key: string]: any;
 }>;
 type HttpResponse = DispatchNodeResultType<{
@@ -39,24 +44,34 @@ type HttpResponse = DispatchNodeResultType<{
 
 const UNDEFINED_SIGN = 'UNDEFINED_SIGN';
 
+const contentTypeMap = {
+  [ContentTypes.none]: '',
+  [ContentTypes.formData]: '',
+  [ContentTypes.xWwwFormUrlencoded]: 'application/x-www-form-urlencoded',
+  [ContentTypes.json]: 'application/json',
+  [ContentTypes.xml]: 'application/xml',
+  [ContentTypes.raw]: 'text/plain'
+};
+
 export const dispatchHttp468Request = async (props: HttpRequestProps): Promise<HttpResponse> => {
   let {
-    res,
-    detail,
-    appId,
+    runningAppInfo: { id: appId },
     chatId,
-    stream,
     responseChatItemId,
     variables,
-    node: { outputs },
+    node,
+    runtimeNodes,
     histories,
-    isToolCall,
+    workflowStreamResponse,
     params: {
       system_httpMethod: httpMethod = 'POST',
       system_httpReqUrl: httpReqUrl,
       system_httpHeader: httpHeader,
       system_httpParams: httpParams = [],
       system_httpJsonBody: httpJsonBody,
+      system_httpFormBody: httpFormBody,
+      system_httpContentType: httpContentType = ContentTypes.json,
+      system_httpTimeout: httpTimeout = 60,
       [NodeInputKeyEnum.addInputParam]: dynamicInput,
       ...body
     }
@@ -66,30 +81,49 @@ export const dispatchHttp468Request = async (props: HttpRequestProps): Promise<H
     return Promise.reject('Http url is empty');
   }
 
-  const concatVariables = {
+  const systemVariables = {
     appId,
     chatId,
     responseChatItemId,
-    ...variables,
-    histories: histories?.slice(-10) || [],
-    ...body,
-    ...dynamicInput
+    histories: histories?.slice(-10) || []
   };
-
+  const concatVariables = {
+    ...variables,
+    ...body,
+    // ...dynamicInput,
+    ...systemVariables
+  };
   const allVariables = {
     [NodeInputKeyEnum.addInputParam]: concatVariables,
     ...concatVariables
   };
-
   httpReqUrl = replaceVariable(httpReqUrl, allVariables);
+
+  const replaceStringVariables = (text: string) => {
+    return replaceVariable(
+      replaceEditorVariable({
+        text,
+        nodes: runtimeNodes,
+        variables: allVariables,
+        runningNode: node
+      }),
+      allVariables
+    );
+  };
+
   // parse header
   const headers = await (() => {
     try {
+      const contentType = contentTypeMap[httpContentType];
+      if (contentType) {
+        httpHeader = [{ key: 'Content-Type', value: contentType, type: 'string' }, ...httpHeader];
+      }
+
       if (!httpHeader || httpHeader.length === 0) return {};
       // array
       return httpHeader.reduce((acc: Record<string, string>, item) => {
-        const key = replaceVariable(item.key, allVariables);
-        const value = replaceVariable(item.value, allVariables);
+        const key = replaceStringVariables(item.key);
+        const value = replaceStringVariables(item.value);
         acc[key] = valueTypeFormat(value, WorkflowIOValueTypeEnum.string);
         return acc;
       }, {});
@@ -97,46 +131,106 @@ export const dispatchHttp468Request = async (props: HttpRequestProps): Promise<H
       return Promise.reject('Header 为非法 JSON 格式');
     }
   })();
+
   const params = httpParams.reduce((acc: Record<string, string>, item) => {
-    const key = replaceVariable(item.key, allVariables);
-    const value = replaceVariable(item.value, allVariables);
+    const key = replaceStringVariables(item.key);
+    const value = replaceStringVariables(item.value);
     acc[key] = valueTypeFormat(value, WorkflowIOValueTypeEnum.string);
     return acc;
   }, {});
+
   const requestBody = await (() => {
-    if (!httpJsonBody) return {};
+    if (httpContentType === ContentTypes.none) return {};
     try {
-      httpJsonBody = replaceVariable(httpJsonBody, allVariables);
-      const jsonParse = JSON.parse(httpJsonBody);
-      const removeSignJson = removeUndefinedSign(jsonParse);
-      return removeSignJson;
+      if (httpContentType === ContentTypes.formData) {
+        if (!Array.isArray(httpFormBody)) return {};
+        httpFormBody = httpFormBody.map((item) => ({
+          key: replaceStringVariables(item.key),
+          type: item.type,
+          value: replaceStringVariables(item.value)
+        }));
+        const formData = new FormData();
+        for (const { key, value } of httpFormBody) {
+          formData.append(key, value);
+        }
+        return formData;
+      }
+      if (httpContentType === ContentTypes.xWwwFormUrlencoded) {
+        if (!Array.isArray(httpFormBody)) return {};
+        httpFormBody = httpFormBody.map((item) => ({
+          key: replaceStringVariables(item.key),
+          type: item.type,
+          value: replaceStringVariables(item.value)
+        }));
+        const urlSearchParams = new URLSearchParams();
+        for (const { key, value } of httpFormBody) {
+          urlSearchParams.append(key, value);
+        }
+        return urlSearchParams;
+      }
+      if (!httpJsonBody) return {};
+      if (httpContentType === ContentTypes.json) {
+        httpJsonBody = replaceVariable(httpJsonBody, allVariables);
+        // Json body, parse and return
+        const jsonParse = JSON.parse(httpJsonBody);
+        const removeSignJson = removeUndefinedSign(jsonParse);
+        return removeSignJson;
+      }
+      httpJsonBody = replaceStringVariables(httpJsonBody);
+      return httpJsonBody.replaceAll(UNDEFINED_SIGN, 'null');
     } catch (error) {
       console.log(error);
       return Promise.reject(`Invalid JSON body: ${httpJsonBody}`);
     }
   })();
 
+  // Just show
+  const formattedRequestBody: Record<string, any> = (() => {
+    if (requestBody instanceof FormData || requestBody instanceof URLSearchParams) {
+      return Object.fromEntries(requestBody);
+    } else if (typeof requestBody === 'string') {
+      try {
+        return JSON.parse(requestBody);
+      } catch {
+        return { content: requestBody };
+      }
+    } else if (typeof requestBody === 'object' && requestBody !== null) {
+      return requestBody;
+    }
+    return {};
+  })();
+
   try {
-    const { formatResponse, rawResponse } = await fetchData({
-      method: httpMethod,
-      url: httpReqUrl,
-      headers,
-      body: requestBody,
-      params
-    });
+    const { formatResponse, rawResponse } = await (async () => {
+      const systemPluginCb = await getSystemPluginCb();
+      if (systemPluginCb[httpReqUrl]) {
+        const pluginResult = await systemPluginCb[httpReqUrl](requestBody);
+        return {
+          formatResponse: pluginResult,
+          rawResponse: pluginResult
+        };
+      }
+      return fetchData({
+        method: httpMethod,
+        url: httpReqUrl,
+        headers,
+        body: requestBody,
+        params,
+        timeout: httpTimeout
+      });
+    })();
 
     // format output value type
     const results: Record<string, any> = {};
     for (const key in formatResponse) {
-      const output = outputs.find((item) => item.key === key);
+      const output = node.outputs.find((item) => item.key === key);
       if (!output) continue;
       results[key] = valueTypeFormat(formatResponse[key], output.valueType);
     }
 
-    if (stream && typeof formatResponse[NodeOutputKeyEnum.answerText] === 'string') {
-      responseWrite({
-        res,
-        event: detail ? SseResponseEventEnum.fastAnswer : undefined,
+    if (typeof formatResponse[NodeOutputKeyEnum.answerText] === 'string') {
+      workflowStreamResponse?.({
+        event: SseResponseEventEnum.fastAnswer,
         data: textAdaptGptResponse({
           text: formatResponse[NodeOutputKeyEnum.answerText]
         })
@@ -147,7 +241,7 @@ export const dispatchHttp468Request = async (props: HttpRequestProps): Promise<H
       [DispatchNodeResponseKeyEnum.nodeResponse]: {
         totalPoints: 0,
         params: Object.keys(params).length > 0 ? params : undefined,
-        body: Object.keys(requestBody).length > 0 ? requestBody : undefined,
+        body: Object.keys(formattedRequestBody).length > 0 ? formattedRequestBody : undefined,
         headers: Object.keys(headers).length > 0 ? headers : undefined,
         httpResult: rawResponse
       },
@@ -163,7 +257,7 @@ export const dispatchHttp468Request = async (props: HttpRequestProps): Promise<H
       [NodeOutputKeyEnum.error]: formatHttpError(error),
       [DispatchNodeResponseKeyEnum.nodeResponse]: {
         params: Object.keys(params).length > 0 ? params : undefined,
-        body: Object.keys(requestBody).length > 0 ? requestBody : undefined,
+        body: Object.keys(formattedRequestBody).length > 0 ? formattedRequestBody : undefined,
         headers: Object.keys(headers).length > 0 ? headers : undefined,
         httpResult: { error: formatHttpError(error) }
       },
@@ -177,23 +271,24 @@ async function fetchData({
   url,
   headers,
   body,
-  params
+  params,
+  timeout
 }: {
   method: string;
   url: string;
   headers: Record<string, any>;
-  body: Record<string, any>;
+  body: Record<string, any> | string;
   params: Record<string, any>;
-}): Promise<Record<string, any>> {
+  timeout: number;
+}) {
   const { data: response } = await axios({
     method,
     baseURL: `http://${SERVICE_LOCAL_HOST}`,
     url,
     headers: {
-      'Content-Type': 'application/json',
       ...headers
     },
-    timeout: 120000,
+    timeout: timeout * 1000,
     params: params,
     data: ['POST', 'PUT', 'PATCH'].includes(method) ? body : undefined
   });
@@ -279,14 +374,14 @@ async function fetchData({
 function replaceVariable(text: string, obj: Record<string, any>) {
   for (const [key, value] of Object.entries(obj)) {
     if (value === undefined) {
-      text = text.replace(new RegExp(`{{${key}}}`, 'g'), UNDEFINED_SIGN);
+      text = text.replace(new RegExp(`{{(${key})}}`, 'g'), UNDEFINED_SIGN);
     } else {
       const replacement = JSON.stringify(value);
       const unquotedReplacement =
         replacement.startsWith('"') && replacement.endsWith('"')
           ? replacement.slice(1, -1)
           : replacement;
-      text = text.replace(new RegExp(`{{${key}}}`, 'g'), unquotedReplacement);
+      text = text.replace(new RegExp(`{{(${key})}}`, 'g'), () => unquotedReplacement);
     }
   }
   return text || '';
@@ -309,15 +404,4 @@ function removeUndefinedSign(obj: Record<string, any>) {
     }
   }
   return obj;
-}
-function formatHttpError(error: any) {
-  return {
-    message: error?.message,
-    name: error?.name,
-    method: error?.config?.method,
-    baseURL: error?.config?.baseURL,
-    url: error?.config?.url,
-    code: error?.code,
-    status: error?.status
-  };
 }

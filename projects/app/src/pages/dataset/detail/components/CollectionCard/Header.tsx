@@ -1,12 +1,20 @@
 import React, { useCallback, useRef } from 'react';
-import { Box, Flex, MenuButton, Button, Link, useTheme, useDisclosure } from '@chakra-ui/react';
+import {
+  Box,
+  Flex,
+  MenuButton,
+  Button,
+  Link,
+  useTheme,
+  useDisclosure,
+  HStack
+} from '@chakra-ui/react';
 import {
   getDatasetCollectionPathById,
   postDatasetCollection,
   putDatasetCollectionById
 } from '@/web/core/dataset/api';
 import { useQuery } from '@tanstack/react-query';
-import { debounce } from 'lodash';
 import { useTranslation } from 'next-i18next';
 import MyIcon from '@fastgpt/web/components/common/Icon';
 import MyInput from '@/components/MyInput';
@@ -26,39 +34,30 @@ import EditFolderModal, { useEditFolder } from '../../../component/EditFolderMod
 import { TabEnum } from '../../index';
 import ParentPath from '@/components/common/ParentPaths';
 import dynamic from 'next/dynamic';
-import { useUserStore } from '@/web/support/user/useUserStore';
-import { TeamMemberRoleEnum } from '@fastgpt/global/support/user/team/constant';
 
 import { ImportDataSourceEnum } from '@fastgpt/global/core/dataset/constants';
 import { useContextSelector } from 'use-context-selector';
 import { CollectionPageContext } from './Context';
 import { DatasetPageContext } from '@/web/core/dataset/context/datasetPageContext';
+import { useSystem } from '@fastgpt/web/hooks/useSystem';
+import HeaderTagPopOver from './HeaderTagPopOver';
 
 const FileSourceSelector = dynamic(() => import('../Import/components/FileSourceSelector'));
 
 const Header = ({}: {}) => {
   const { t } = useTranslation();
   const theme = useTheme();
-  const { setLoading } = useSystemStore();
-  const { userInfo } = useUserStore();
+
+  const { setLoading, feConfigs } = useSystemStore();
   const datasetDetail = useContextSelector(DatasetPageContext, (v) => v.datasetDetail);
 
   const router = useRouter();
-  const { parentId = '' } = router.query as { parentId: string; datasetId: string };
-  const { isPc } = useSystemStore();
+  const { parentId = '' } = router.query as { parentId: string };
+  const { isPc } = useSystem();
 
   const lastSearch = useRef('');
   const { searchText, setSearchText, total, getData, pageNum, onOpenWebsiteModal } =
     useContextSelector(CollectionPageContext, (v) => v);
-
-  // change search
-  const debounceRefetch = useCallback(
-    debounce(() => {
-      getData(1);
-      lastSearch.current = searchText;
-    }, 300),
-    []
-  );
 
   const { data: paths = [] } = useQuery(['getDatasetCollectionPathById', parentId], () =>
     getDatasetCollectionPathById(parentId)
@@ -67,8 +66,8 @@ const Header = ({}: {}) => {
   const { editFolderData, setEditFolderData } = useEditFolder();
   const { onOpenModal: onOpenCreateVirtualFileModal, EditModal: EditCreateVirtualFileModal } =
     useEditTitle({
-      title: t('dataset.Create manual collection'),
-      tip: t('dataset.Manual collection Tip'),
+      title: t('common:dataset.Create manual collection'),
+      tip: t('common:dataset.Manual collection Tip'),
       canEmpty: false
     });
   const {
@@ -108,59 +107,67 @@ const Header = ({}: {}) => {
       setLoading(false);
     },
 
-    successToast: t('common.Create Success'),
-    errorToast: t('common.Create Failed')
+    successToast: t('common:common.Create Success'),
+    errorToast: t('common:common.Create Failed')
   });
+  const isWebSite = datasetDetail?.type === DatasetTypeEnum.websiteDataset;
 
   return (
-    <Flex px={[2, 6]} alignItems={'flex-start'} h={'35px'}>
-      <Box flex={1}>
-        <ParentPath
-          paths={paths.map((path, i) => ({
-            parentId: path.parentId,
-            parentName: i === paths.length - 1 ? `${path.parentName}` : path.parentName
-          }))}
-          FirstPathDom={
-            <>
-              <Box fontWeight={'bold'} fontSize={['sm', 'lg']}>
-                {t(DatasetTypeMap[datasetDetail?.type]?.collectionLabel)}({total})
-              </Box>
-              {datasetDetail?.websiteConfig?.url && (
-                <Flex fontSize={'sm'}>
-                  {t('core.dataset.website.Base Url')}:
-                  <Link
-                    href={datasetDetail.websiteConfig.url}
-                    target="_blank"
-                    mr={2}
-                    textDecoration={'underline'}
-                    color={'primary.600'}
-                  >
-                    {datasetDetail.websiteConfig.url}
-                  </Link>
+    <Box display={['block', 'flex']} alignItems={'center'} gap={2}>
+      <HStack flex={1}>
+        <Box flex={1} fontWeight={'500'} color={'myGray.900'} whiteSpace={'nowrap'}>
+          <ParentPath
+            paths={paths.map((path, i) => ({
+              parentId: path.parentId,
+              parentName: i === paths.length - 1 ? `${path.parentName}` : path.parentName
+            }))}
+            FirstPathDom={
+              <Flex
+                flexDir={'column'}
+                justify={'center'}
+                h={'100%'}
+                fontSize={isWebSite ? 'sm' : 'md'}
+                fontWeight={'500'}
+                color={'myGray.600'}
+              >
+                <Flex align={'center'}>
+                  {!isWebSite && <MyIcon name="common/list" mr={2} w={'20px'} color={'black'} />}
+                  {t(DatasetTypeMap[datasetDetail?.type]?.collectionLabel as any)}({total})
                 </Flex>
-              )}
-            </>
-          }
-          onClick={(e) => {
-            router.replace({
-              query: {
-                ...router.query,
-                parentId: e
-              }
-            });
-          }}
-        />
-      </Box>
+                {datasetDetail?.websiteConfig?.url && (
+                  <Flex fontSize={'mini'}>
+                    {t('common:core.dataset.website.Base Url')}:
+                    <Link
+                      href={datasetDetail.websiteConfig.url}
+                      target="_blank"
+                      mr={2}
+                      color={'blue.700'}
+                    >
+                      {datasetDetail.websiteConfig.url}
+                    </Link>
+                  </Flex>
+                )}
+              </Flex>
+            }
+            onClick={(e) => {
+              router.replace({
+                query: {
+                  ...router.query,
+                  parentId: e
+                }
+              });
+            }}
+          />
+        </Box>
 
-      {/* search input */}
-      {isPc && (
-        <Flex alignItems={'center'} mr={4}>
+        {/* search input */}
+        {isPc && (
           <MyInput
-            bg={'myGray.50'}
-            w={['100%', '250px']}
+            maxW={'250px'}
+            flex={1}
             size={'sm'}
             h={'36px'}
-            placeholder={t('common.Search') || ''}
+            placeholder={t('common:common.Search') || ''}
             value={searchText}
             leftIcon={
               <MyIcon
@@ -172,25 +179,17 @@ const Header = ({}: {}) => {
             }
             onChange={(e) => {
               setSearchText(e.target.value);
-              debounceRefetch();
-            }}
-            onBlur={() => {
-              if (searchText === lastSearch.current) return;
-              getData(1);
-            }}
-            onKeyDown={(e) => {
-              if (searchText === lastSearch.current) return;
-              if (e.key === 'Enter') {
-                getData(1);
-              }
             }}
           />
-        </Flex>
-      )}
+        )}
+
+        {/* Tag */}
+        {datasetDetail.permission.hasWritePer && feConfigs?.isPlus && <HeaderTagPopOver />}
+      </HStack>
 
       {/* diff collection button */}
-      {userInfo?.team?.role !== TeamMemberRoleEnum.visitor && (
-        <>
+      {datasetDetail.permission.hasWritePer && (
+        <Box textAlign={'end'} mt={[3, 0]}>
           {datasetDetail?.type === DatasetTypeEnum.dataset && (
             <MyMenu
               offset={[0, 5]}
@@ -202,71 +201,83 @@ const Header = ({}: {}) => {
                   fontSize={['sm', 'md']}
                 >
                   <Flex
-                    alignItems={'center'}
-                    px={5}
+                    px={3.5}
                     py={2}
-                    borderRadius={'md'}
+                    borderRadius={'sm'}
                     cursor={'pointer'}
                     bg={'primary.500'}
                     overflow={'hidden'}
                     color={'white'}
-                    h={['28px', '35px']}
                   >
-                    <MyIcon name={'common/importLight'} mr={2} w={'14px'} />
-                    <Box>{t('dataset.collections.Create And Import')}</Box>
+                    <Flex h={'20px'} alignItems={'center'}>
+                      <MyIcon
+                        name={'common/folderImport'}
+                        mr={2}
+                        w={'18px'}
+                        h={'18px'}
+                        color={'white'}
+                      />
+                    </Flex>
+                    <Box h={'20px'} fontSize={'sm'} fontWeight={'500'}>
+                      {t('common:dataset.collections.Create And Import')}
+                    </Box>
                   </Flex>
                 </MenuButton>
               }
               menuList={[
                 {
-                  label: (
-                    <Flex>
-                      <MyIcon name={'common/folderFill'} w={'20px'} mr={2} />
-                      {t('Folder')}
-                    </Flex>
-                  ),
-                  onClick: () => setEditFolderData({})
-                },
-                {
-                  label: (
-                    <Flex>
-                      <MyIcon name={'core/dataset/manualCollection'} mr={2} w={'20px'} />
-                      {t('core.dataset.Manual collection')}
-                    </Flex>
-                  ),
-                  onClick: () => {
-                    onOpenCreateVirtualFileModal({
-                      defaultVal: '',
-                      onSuccess: (name) => {
-                        onCreateCollection({ name, type: DatasetCollectionTypeEnum.virtual });
+                  children: [
+                    {
+                      label: (
+                        <Flex>
+                          <MyIcon name={'common/folderFill'} w={'20px'} mr={2} />
+                          {t('common:Folder')}
+                        </Flex>
+                      ),
+                      onClick: () => setEditFolderData({})
+                    },
+                    {
+                      label: (
+                        <Flex>
+                          <MyIcon name={'core/dataset/manualCollection'} mr={2} w={'20px'} />
+                          {t('common:core.dataset.Manual collection')}
+                        </Flex>
+                      ),
+                      onClick: () => {
+                        onOpenCreateVirtualFileModal({
+                          defaultVal: '',
+                          onSuccess: (name) => {
+                            onCreateCollection({ name, type: DatasetCollectionTypeEnum.virtual });
+                          }
+                        });
                       }
-                    });
-                  }
-                },
-                {
-                  label: (
-                    <Flex>
-                      <MyIcon name={'core/dataset/fileCollection'} mr={2} w={'20px'} />
-                      {t('core.dataset.Text collection')}
-                    </Flex>
-                  ),
-                  onClick: onOpenFileSourceSelector
-                },
-                {
-                  label: (
-                    <Flex>
-                      <MyIcon name={'core/dataset/tableCollection'} mr={2} w={'20px'} />
-                      {t('core.dataset.Table collection')}
-                    </Flex>
-                  ),
-                  onClick: () =>
-                    router.replace({
-                      query: {
-                        ...router.query,
-                        currentTab: TabEnum.import,
-                        source: ImportDataSourceEnum.csvTable
-                      }
-                    })
+                    },
+                    {
+                      label: (
+                        <Flex>
+                          <MyIcon name={'core/dataset/fileCollection'} mr={2} w={'20px'} />
+                          {t('common:core.dataset.Text collection')}
+                        </Flex>
+                      ),
+                      onClick: onOpenFileSourceSelector
+                    },
+                    {
+                      label: (
+                        <Flex>
+                          <MyIcon name={'core/dataset/tableCollection'} mr={2} w={'20px'} />
+                          {t('common:core.dataset.Table collection')}
+                        </Flex>
+                      ),
+                      onClick: () =>
+                        router.replace({
+                          query: {
+                            ...router.query,
+                            currentTab: TabEnum.import,
+                            source: ImportDataSourceEnum.csvTable
+                          }
+                        })
+                    }
+                  ]
                 }
               ]}
             />
@@ -276,7 +287,7 @@ const Header = ({}: {}) => {
               {datasetDetail?.websiteConfig?.url ? (
                 <Flex alignItems={'center'}>
                   {datasetDetail.status === DatasetStatusEnum.active && (
-                    <Button onClick={onOpenWebsiteModal}>{t('common.Config')}</Button>
+                    <Button onClick={onOpenWebsiteModal}>{t('common:common.Config')}</Button>
                   )}
                   {datasetDetail.status === DatasetStatusEnum.syncing && (
                     <Flex
@@ -296,13 +307,15 @@ const Header = ({}: {}) => {
                         mt={'1px'}
                       ></Box>
                       <Box ml={2} color={'myGray.600'}>
-                        {t('core.dataset.status.syncing')}
+                        {t('common:core.dataset.status.syncing')}
                       </Box>
                     </Flex>
                   )}
                 </Flex>
               ) : (
-                <Button onClick={onOpenWebsiteModal}>{t('core.dataset.Set Website Config')}</Button>
+                <Button onClick={onOpenWebsiteModal}>
+                  {t('common:core.dataset.Set Website Config')}
+                </Button>
               )}
             </>
           )}
@@ -317,51 +330,63 @@ const Header = ({}: {}) => {
                   fontSize={['sm', 'md']}
                 >
                   <Flex
-                    alignItems={'center'}
-                    px={5}
+                    px={3.5}
                     py={2}
-                    borderRadius={'md'}
+                    borderRadius={'sm'}
                     cursor={'pointer'}
                     bg={'primary.500'}
                     overflow={'hidden'}
                     color={'white'}
-                    h={['28px', '35px']}
                   >
-                    <MyIcon name={'common/importLight'} mr={2} w={'14px'} />
-                    <Box>{t('dataset.collections.Create And Import')}</Box>
+                    <Flex h={'20px'} alignItems={'center'}>
+                      <MyIcon
+                        name={'common/folderImport'}
+                        mr={2}
+                        w={'18px'}
+                        h={'18px'}
+                        color={'white'}
+                      />
+                    </Flex>
+                    <Box h={'20px'} fontSize={'sm'} fontWeight={'500'}>
+                      {t('common:dataset.collections.Create And Import')}
+                    </Box>
                   </Flex>
                 </MenuButton>
               }
               menuList={[
                 {
-                  label: (
-                    <Flex>
-                      <MyIcon name={'common/folderFill'} w={'20px'} mr={2} />
-                      {t('Folder')}
-                    </Flex>
-                  ),
-                  onClick: () => setEditFolderData({})
-                },
-                {
-                  label: (
-                    <Flex>
-                      <MyIcon name={'core/dataset/fileCollection'} mr={2} w={'20px'} />
-                      {t('core.dataset.Text collection')}
-                    </Flex>
-                  ),
-                  onClick: () =>
-                    router.replace({
-                      query: {
-                        ...router.query,
-                        currentTab: TabEnum.import,
-                        source: ImportDataSourceEnum.externalFile
-                      }
-                    })
+                  children: [
+                    {
+                      label: (
+                        <Flex>
+                          <MyIcon name={'common/folderFill'} w={'20px'} mr={2} />
+                          {t('common:Folder')}
+                        </Flex>
+                      ),
+                      onClick: () => setEditFolderData({})
+                    },
+                    {
+                      label: (
+                        <Flex>
+                          <MyIcon name={'core/dataset/fileCollection'} mr={2} w={'20px'} />
+                          {t('common:core.dataset.Text collection')}
+                        </Flex>
+                      ),
+                      onClick: () =>
+                        router.replace({
+                          query: {
+                            ...router.query,
+                            currentTab: TabEnum.import,
+                            source: ImportDataSourceEnum.externalFile
+                          }
+                        })
+                    }
+                  ]
                 }
               ]}
             />
           )}
-        </>
+        </Box>
       )}
 
       {/* modal */}
@@ -392,7 +417,7 @@ const Header = ({}: {}) => {
       )}
       <EditCreateVirtualFileModal iconSrc={'modal/manualDataset'} closeBtnText={''} />
       {isOpenFileSourceSelector && <FileSourceSelector onClose={onCloseFileSourceSelector} />}
-    </Flex>
+    </Box>
   );
 };
 

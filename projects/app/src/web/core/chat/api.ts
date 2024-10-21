@@ -1,6 +1,11 @@
 import { GET, POST, DELETE, PUT } from '@/web/common/api/request';
-import type { ChatHistoryItemType, ChatAppListSchema } from '@fastgpt/global/core/chat/type.d';
-
+import type {
+  ChatHistoryItemType,
+  ChatHistoryItemResType,
+  ChatSiteItemType,
+  ChatItemType
+} from '@fastgpt/global/core/chat/type.d';
+import { getResDataQuery } from '@/pages/api/core/chat/getResData';
 import type {
   CloseCustomFeedbackParams,
   InitChatProps,
@@ -9,6 +14,7 @@ import type {
   GetHistoriesProps,
   InitTeamChatProps
 } from '@/global/core/chat/api.d';
+
 import type {
   AdminUpdateFeedbackParams,
   ClearHistoriesProps,
@@ -19,6 +25,11 @@ import type {
 import { UpdateChatFeedbackProps } from '@fastgpt/global/core/chat/api';
 import { AuthTeamTagTokenProps } from '@fastgpt/global/support/user/team/tag';
 import { AppListItemType } from '@fastgpt/global/core/app/type';
+import { PaginationProps, PaginationResponse } from '@fastgpt/web/common/fetch/type';
+import type {
+  getPaginationRecordsBody,
+  getPaginationRecordsResponse
+} from '@/pages/api/core/chat/getPaginationRecords';
 
 /**
  * 获取初始化聊天内容
@@ -33,8 +44,16 @@ export const getTeamChatInfo = (data: InitTeamChatProps) =>
 /**
  * get current window history(appid or shareId)
  */
-export const getChatHistories = (data: GetHistoriesProps) =>
-  POST<ChatHistoryItemType[]>('/core/chat/getHistories', data);
+export const getChatHistories = (data: PaginationProps<GetHistoriesProps>) =>
+  POST<PaginationResponse<ChatHistoryItemType>>('/core/chat/getHistories', data);
+/**
+ * get detail responseData by dataId appId chatId
+ */
+export const getChatResData = (data: getResDataQuery) =>
+  GET<ChatHistoryItemResType[]>(`/core/chat/getResData`, data);
+
+export const getChatRecords = (data: getPaginationRecordsBody) =>
+  POST<getPaginationRecordsResponse>('core/chat/getPaginationRecords', data);
 
 /**
  * delete one history
@@ -43,7 +62,7 @@ export const delChatHistoryById = (data: DelHistoryProps) => DELETE(`/core/chat/
 /**
  * clear all history by appid
  */
-export const clearChatHistoryByAppId = (data: ClearHistoriesProps) =>
+export const delClearChatHistories = (data: ClearHistoriesProps) =>
   DELETE(`/core/chat/clearHistories`, data);
 
 /**

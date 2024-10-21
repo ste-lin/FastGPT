@@ -1,8 +1,18 @@
 import type { ChatCompletionMessageParam } from '@fastgpt/global/core/ai/type.d';
 import { getAIApi } from '../config';
 import { countGptMessagesTokens } from '../../../common/string/tiktoken/index';
+import { loadRequestMessages } from '../../chat/utils';
+import { llmCompletionsBodyFormat } from '../utils';
 
-export const Prompt_QuestionGuide = `你是一个AI智能助手，可以回答和解决我的问题。请结合前面的对话记录，帮我生成 3 个问题，引导我继续提问。问题的长度应小于20个字符，按 JSON 格式返回: ["问题1", "问题2", "问题3"]`;
+export const Prompt_QuestionGuide = `You are an AI assistant tasked with predicting the user's next question based on the conversation history. Your goal is to generate 3 potential questions that will guide the user to continue the conversation. When generating these questions, adhere to the following rules:
+
+1. Use the same language as the user's last question in the conversation history.
+2. Keep each question under 20 characters in length.
+3. Return the questions in JSON format: ["question1", "question2", "question3"].
+
+Analyze the conversation history provided to you and use it as context to generate relevant and engaging follow-up questions. Your predictions should be logical extensions of the current topic or related areas that the user might be interested in exploring further.
+
+Remember to maintain consistency in tone and style with the existing conversation while providing diverse options for the user to choose from. Your goal is to keep the conversation flowing naturally and help the user delve deeper into the subject matter or explore related topics.`;
 
 export async function createQuestionGuide({
   messages,
@@ -18,16 +28,25 @@ export async function createQuestionGuide({
       content: Prompt_QuestionGuide
     }
   ];
+
   const ai = getAIApi({
     timeout: 480000
   });
-  const data = await ai.chat.completions.create({
-    model: model,
-    temperature: 0.1,
-    max_tokens: 200,
-    messages: concatMessages,
-    stream: false
-  });
+  const data = await ai.chat.completions.create(
+    llmCompletionsBodyFormat(
+      {
+        model,
+        temperature: 0.1,
+        max_tokens: 200,
+        messages: await loadRequestMessages({
+          messages: concatMessages,
+          useVision: false
+        }),
+        stream: false
+      },
+      model
+    )
+  );
 
   const answer = data.choices?.[0]?.message?.content || '';
 

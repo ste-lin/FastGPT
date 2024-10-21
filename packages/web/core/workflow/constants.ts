@@ -1,41 +1,50 @@
 import { FlowNodeTemplateTypeEnum } from '@fastgpt/global/core/workflow/constants';
-import { nodeTemplateListType } from '@fastgpt/global/core/workflow/type';
-import { TFunction } from 'next-i18next';
+import { i18nT } from '../../i18n/utils';
 
-export const workflowNodeTemplateList = (t: TFunction): nodeTemplateListType => [
+export const workflowNodeTemplateList = [
   {
     type: FlowNodeTemplateTypeEnum.systemInput,
-    label: t('core.module.template.System input module'),
+    label: i18nT('common:core.module.template.System input module'),
     list: []
   },
   {
-    type: FlowNodeTemplateTypeEnum.textAnswer,
-    label: t('core.module.template.Response module'),
+    type: FlowNodeTemplateTypeEnum.ai,
+    label: i18nT('common:core.module.template.AI function'),
     list: []
   },
   {
-    type: FlowNodeTemplateTypeEnum.functionCall,
-    label: t('core.module.template.Function module'),
+    type: FlowNodeTemplateTypeEnum.search,
+    label: i18nT('common:core.workflow.template.Search'),
+    list: []
+  },
+  {
+    type: FlowNodeTemplateTypeEnum.interactive,
+    label: i18nT('common:core.workflow.template.Interactive'),
+    list: []
+  },
+  {
+    type: FlowNodeTemplateTypeEnum.multimodal,
+    label: i18nT('common:core.workflow.template.Multimodal'),
     list: []
   },
   {
     type: FlowNodeTemplateTypeEnum.tools,
-    label: t('core.module.template.Tool module'),
+    label: i18nT('common:core.module.template.Tool module'),
     list: []
   },
   {
-    type: FlowNodeTemplateTypeEnum.externalCall,
-    label: t('core.module.template.External module'),
-    list: []
-  },
-  {
-    type: FlowNodeTemplateTypeEnum.personalPlugin,
-    label: '',
+    type: FlowNodeTemplateTypeEnum.communication,
+    label: i18nT('app:workflow.template.communication'),
     list: []
   },
   {
     type: FlowNodeTemplateTypeEnum.other,
-    label: t('common.Other'),
+    label: i18nT('common:common.Other'),
+    list: []
+  },
+  {
+    type: FlowNodeTemplateTypeEnum.teamApp,
+    label: '',
     list: []
   }
 ];

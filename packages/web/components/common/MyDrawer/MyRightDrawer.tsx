@@ -25,7 +25,7 @@ const MyRightDrawer = ({
   onClose,
   iconSrc,
   title,
-  maxW = ['90vw', '30vw'],
+  maxW = ['90vw', '500px'],
   children,
   isLoading,
   ...props
@@ -61,7 +61,7 @@ const MyRightDrawer = ({
               )}
             </>
           )}
-          <Box flex={'1'} fontSize={'lg'}>
+          <Box flex={'1'} fontSize={'md'}>
             {title}
           </Box>
           <DrawerCloseButton position={'relative'} fontSize={'sm'} top={0} right={0} />

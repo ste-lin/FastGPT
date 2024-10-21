@@ -1,51 +1,69 @@
 import { LLMModelTypeEnum } from '../../ai/constants';
 import { WorkflowIOValueTypeEnum, NodeInputKeyEnum, NodeOutputKeyEnum } from '../constants';
 import { FlowNodeInputTypeEnum, FlowNodeOutputTypeEnum } from '../node/constant';
-import { EditInputFieldMapType, EditNodeFieldType, EditOutputFieldMapType } from '../node/type';
 
-export type FlowNodeInputItemType = {
-  selectedTypeIndex?: number;
-  renderTypeList: FlowNodeInputTypeEnum[]; // Node Type. Decide on a render style
+// Dynamic input field configuration
+export type CustomFieldConfigType = {
+  // selectInputTypeList: FlowNodeInputTypeEnum[]; // 可以选哪些输入类型, 只有1个话,则默认选择
 
-  key: `${NodeInputKeyEnum}` | string;
-  valueType?: WorkflowIOValueTypeEnum; // data type
-  value?: any;
-  label: string;
-  debugLabel?: string;
-  description?: string; // field desc
-  required?: boolean;
-  toolDescription?: string; // If this field is not empty, it is entered as a tool
+  // reference
+  selectValueTypeList?: WorkflowIOValueTypeEnum[]; // 可以选哪个数据类型, 只有1个的话,则默认选择
 
-  maxLength?: number; // input,textarea
+  // showIsToolParam?: boolean; // 是否作为工具参数
 
-  // edit
-  canEdit?: boolean;
+  // showRequired?: boolean;
+  // defaultRequired?: boolean;
 
-  // render components params
+  showDefaultValue?: boolean;
+  showDescription?: boolean;
+};
+export type InputComponentPropsType = {
   referencePlaceholder?: string;
   placeholder?: string; // input,textarea
+  maxLength?: number; // input,textarea
 
-  list?: { label: string; value: any }[]; // select
+  list?: { label: string; value: string }[]; // select
 
-  markList?: { label: string; value: any }[]; // slider
+  markList?: { label: string; value: number }[]; // slider
   step?: number; // slider
   max?: number; // slider, number input
   min?: number; // slider, number input
 
   defaultValue?: string;
 
-  // dynamic input
-  editField?: EditNodeFieldType['editField'];
-  dynamicParamDefaultValue?: EditNodeFieldType['dynamicParamDefaultValue'];
-
   llmModelType?: `${LLMModelTypeEnum}`;
+
+  // dynamic input
+  customInputConfig?: CustomFieldConfigType;
+};
+
+export type FlowNodeInputItemType = InputComponentPropsType & {
+  selectedTypeIndex?: number;
+  renderTypeList: FlowNodeInputTypeEnum[]; // Node Type. Decide on a render style
+
+  key: `${NodeInputKeyEnum}` | string;
+  valueType?: WorkflowIOValueTypeEnum; // data type
+  valueDesc?: string; // data desc
+  value?: any;
+  label: string;
+  debugLabel?: string;
+  description?: string; // field desc
+  required?: boolean;
+  toolDescription?: string; // If this field is not empty, it is entered as a tool
+  enum?: string;
+
+  // render components params
+  canEdit?: boolean; // dynamic inputs
+  isPro?: boolean; // Pro version field
+  isToolOutput?: boolean;
 };
 
 export type FlowNodeOutputItemType = {
   id: string; // output unique id(Does not follow the key change)
-  type: `${FlowNodeOutputTypeEnum}`;
+  type: FlowNodeOutputTypeEnum;
   key: `${NodeOutputKeyEnum}` | string;
   valueType?: WorkflowIOValueTypeEnum;
+  valueDesc?: string;
   value?: any;
 
   label?: string;
@@ -54,8 +72,7 @@ export type FlowNodeOutputItemType = {
   required?: boolean;
 
   // component params
-  canEdit?: boolean;
-  editField?: EditOutputFieldMapType; // 添加
+  customFieldConfig?: CustomFieldConfigType;
 };
 
 export type ReferenceValueProps = [string, string | undefined];

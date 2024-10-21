@@ -24,24 +24,34 @@ export type FastGPTConfigFileType = {
 
 export type FastGPTFeConfigsType = {
   show_emptyChat?: boolean;
-  show_register?: boolean;
+  register_method?: ['email' | 'phone'];
+  login_method?: ['email' | 'phone']; // Attention: login method is diffrent with oauth
+  find_password_method?: ['email' | 'phone'];
+  bind_notification_method?: ['email' | 'phone'];
   show_appStore?: boolean;
   show_git?: boolean;
   show_pay?: boolean;
   show_openai_account?: boolean;
   show_promotion?: boolean;
   show_team_chat?: boolean;
-  hide_app_flow?: boolean;
+  show_compliance_copywriting?: boolean;
   concatMd?: string;
+
   docUrl?: string;
   chatbotUrl?: string;
   openAPIDocUrl?: string;
+  systemPluginCourseUrl?: string;
+  appTemplateCourse?: string;
+
   systemTitle?: string;
   systemDescription?: string;
   googleClientVerKey?: string;
   isPlus?: boolean;
-  show_phoneLogin?: boolean;
-  show_emailLogin?: boolean;
+  sso?: {
+    icon?: string;
+    title?: string;
+    url?: string;
+  };
   oauth?: {
     github?: string;
     google?: string;
@@ -71,9 +81,3 @@ export type SystemEnvType = {
   oneapiUrl?: string;
   chatApiKey?: string;
 };
-
-// declare global {
-//   var feConfigs: FastGPTFeConfigsType;
-//   var systemEnv: SystemEnvType;
-//   var systemInitd: boolean;
-// }

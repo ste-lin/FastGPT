@@ -29,6 +29,8 @@ type CollectionPageContextType = {
   pageSize: number;
   searchText: string;
   setSearchText: Dispatch<SetStateAction<string>>;
+  filterTags: string[];
+  setFilterTags: Dispatch<SetStateAction<string[]>>;
 };
 
 export const CollectionPageContext = createContext<CollectionPageContextType>({
@@ -52,6 +54,10 @@ export const CollectionPageContext = createContext<CollectionPageContextType>({
   searchText: '',
   setSearchText: function (value: SetStateAction<string>): void {
     throw new Error('Function not implemented.');
+  },
+  filterTags: [],
+  setFilterTags: function (value: SetStateAction<string[]>): void {
+    throw new Error('Function not implemented.');
   }
 });
 
@@ -67,7 +73,7 @@ const CollectionPageContextProvider = ({ children }: { children: ReactNode }) =>
 
   // website config
   const { openConfirm: openWebSyncConfirm, ConfirmModal: ConfirmWebSyncModal } = useConfirm({
-    content: t('core.dataset.collection.Start Sync Tip')
+    content: t('common:core.dataset.collection.Start Sync Tip')
   });
   const {
     isOpen: isOpenWebsiteModal,
@@ -78,25 +84,25 @@ const CollectionPageContextProvider = ({ children }: { children: ReactNode }) =>
     mutationFn: async (websiteConfig: DatasetSchemaType['websiteConfig']) => {
       onCloseWebsiteModal();
       await checkTeamWebSyncLimit();
-      const billId = await postCreateTrainingUsage({
-        name: t('core.dataset.training.Website Sync'),
-        datasetId: datasetId
-      });
-      await postWebsiteSync({ datasetId: datasetId, billId });
-
       await updateDataset({
         id: datasetId,
         websiteConfig,
         status: DatasetStatusEnum.syncing
       });
+      const billId = await postCreateTrainingUsage({
+        name: t('common:core.dataset.training.Website Sync'),
+        datasetId: datasetId
+      });
+      await postWebsiteSync({ datasetId: datasetId, billId });
 
       return;
     },
-    errorToast: t('common.Update Failed')
+    errorToast: t('common:common.Update Failed')
   });
 
   // collection list
   const [searchText, setSearchText] = useState('');
+  const [filterTags, setFilterTags] = useState<string[]>([]);
   const {
     data: collections,
     Pagination,
@@ -111,13 +117,12 @@ const CollectionPageContextProvider = ({ children }: { children: ReactNode }) =>
     params: {
       datasetId,
       parentId,
-      searchText
+      searchText,
+      filterTags
     },
-    defaultRequest: false
+    // defaultRequest: false,
+    refreshDeps: [parentId, searchText, filterTags]
   });
-  useEffect(() => {
-    getData(1);
-  }, [parentId]);
 
   const contextValue: CollectionPageContextType = {
     openWebSyncConfirm: openWebSyncConfirm(onUpdateDatasetWebsiteConfig),
@@ -125,6 +130,8 @@ const CollectionPageContextProvider = ({ children }: { children: ReactNode }) =>
 
     searchText,
     setSearchText,
+    filterTags,
+    setFilterTags,
     collections,
     Pagination,
     total,

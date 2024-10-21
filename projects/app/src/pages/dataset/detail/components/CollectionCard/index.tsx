@@ -9,7 +9,8 @@ import {
   Th,
   Td,
   Tbody,
-  MenuButton
+  MenuButton,
+  Switch
 } from '@chakra-ui/react';
 import {
   delDatasetCollectionById,
@@ -20,8 +21,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useConfirm } from '@fastgpt/web/hooks/useConfirm';
 import { useTranslation } from 'next-i18next';
 import MyIcon from '@fastgpt/web/components/common/Icon';
-import dayjs from 'dayjs';
-import { useRequest } from '@fastgpt/web/hooks/useRequest';
+import { useRequest2 } from '@fastgpt/web/hooks/useRequest';
 import { useRouter } from 'next/router';
 import MyMenu from '@fastgpt/web/components/common/MyMenu';
 import { useEditTitle } from '@/web/common/hooks/useEditTitle';
@@ -33,18 +33,24 @@ import {
 import { getCollectionIcon } from '@fastgpt/global/core/dataset/utils';
 import { TabEnum } from '../../index';
 import dynamic from 'next/dynamic';
-import { useDrag } from '@/web/common/hooks/useDrag';
 import SelectCollections from '@/web/core/dataset/components/SelectCollections';
 import { useToast } from '@fastgpt/web/hooks/useToast';
-import MyTooltip from '@/components/MyTooltip';
-import { useUserStore } from '@/web/support/user/useUserStore';
-import { TeamMemberRoleEnum } from '@fastgpt/global/support/user/team/constant';
-import { useDatasetStore } from '@/web/core/dataset/store/dataset';
+import MyTooltip from '@fastgpt/web/components/common/MyTooltip';
 import { DatasetCollectionSyncResultEnum } from '@fastgpt/global/core/dataset/constants';
 import MyBox from '@fastgpt/web/components/common/MyBox';
 import { useContextSelector } from 'use-context-selector';
 import { CollectionPageContext } from './Context';
 import { DatasetPageContext } from '@/web/core/dataset/context/datasetPageContext';
+import { useI18n } from '@/web/context/I18n';
+import { formatTime2YMDHM } from '@fastgpt/global/common/string/time';
+import MyTag from '@fastgpt/web/components/common/Tag/index';
+import {
+  checkCollectionIsFolder,
+  getTrainingTypeLabel
+} from '@fastgpt/global/core/dataset/collection/utils';
+import { useFolderDrag } from '@/components/common/folder/useFolderDrag';
+import TagsPopOver from './TagsPopOver';
+import { useSystemStore } from '@/web/common/system/useSystemStore';
 
 const Header = dynamic(() => import('./Header'));
 const EmptyCollectionTip = dynamic(() => import('./EmptyCollectionTip'));
@@ -54,27 +60,26 @@ const CollectionCard = () => {
   const router = useRouter();
   const { toast } = useToast();
   const { t } = useTranslation();
-  const { userInfo } = useUserStore();
+  const { datasetT } = useI18n();
   const { datasetDetail, loadDatasetDetail } = useContextSelector(DatasetPageContext, (v) => v);
+  const { feConfigs } = useSystemStore();
 
   const { openConfirm: openDeleteConfirm, ConfirmModal: ConfirmDeleteModal } = useConfirm({
-    content: t('dataset.Confirm to delete the file'),
+    content: t('common:dataset.Confirm to delete the file'),
     type: 'delete'
   });
   const { openConfirm: openSyncConfirm, ConfirmModal: ConfirmSyncModal } = useConfirm({
-    content: t('core.dataset.collection.Start Sync Tip')
+    content: t('common:core.dataset.collection.Start Sync Tip')
   });
 
   const { onOpenModal: onOpenEditTitleModal, EditModal: EditTitleModal } = useEditTitle({
-    title: t('Rename')
+    title: t('common:Rename')
   });
 
   const [moveCollectionData, setMoveCollectionData] = useState<{ collectionId: string }>();
 
   const { collections, Pagination, total, getData, isGetting, pageNum, pageSize } =
     useContextSelector(CollectionPageContext, (v) => v);
-
-  const { dragStartId, setDragStartId, dragTargetId, setDragTargetId } = useDrag();
 
   // Ad file status icon
   const formatCollections = useMemo(
@@ -87,16 +92,12 @@ const CollectionCard = () => {
               statusText: t('dataset.collections.Collection Embedding', {
                 total: collection.trainingAmount
               }),
-              color: 'myGray.600',
-              bg: 'myGray.50',
-              borderColor: 'borderColor.low'
+              colorSchema: 'gray'
             };
           }
           return {
-            statusText: t('core.dataset.collection.status.active'),
-            color: 'green.600',
-            bg: 'green.50',
-            borderColor: 'green.300'
+            statusText: t('common:core.dataset.collection.status.active'),
+            colorSchema: 'green'
           };
         })();
 
@@ -109,60 +110,50 @@ const CollectionCard = () => {
     [collections, t]
   );
 
-  const { mutate: onUpdateCollectionName } = useRequest({
-    mutationFn: ({ collectionId, name }: { collectionId: string; name: string }) => {
-      return putDatasetCollectionById({
-        id: collectionId,
-        name
-      });
-    },
-    onSuccess() {
-      getData(pageNum);
-    },
-
-    successToast: t('common.Rename Success'),
-    errorToast: t('common.Rename Failed')
-  });
-  const { mutate: onDelCollection, isLoading: isDeleting } = useRequest({
-    mutationFn: (collectionId: string) => {
+  const { runAsync: onUpdateCollection, loading: isUpdating } = useRequest2(
+    putDatasetCollectionById,
+    {
+      onSuccess() {
+        getData(pageNum);
+      },
+      successToast: t('common:common.Update Success')
+    }
+  );
+  const { runAsync: onDelCollection, loading: isDeleting } = useRequest2(
+    (collectionId: string) => {
       return delDatasetCollectionById({
         id: collectionId
       });
     },
-    onSuccess() {
-      getData(pageNum);
-    },
-    successToast: t('common.Delete Success'),
-    errorToast: t('common.Delete Failed')
-  });
+    {
+      onSuccess() {
+        getData(pageNum);
+      },
+      successToast: t('common:common.Delete Success'),
+      errorToast: t('common:common.Delete Failed')
+    }
+  );
 
-  const { mutate: onclickStartSync, isLoading: isSyncing } = useRequest({
-    mutationFn: (collectionId: string) => {
-      return postLinkCollectionSync(collectionId);
-    },
+  const { runAsync: onclickStartSync, loading: isSyncing } = useRequest2(postLinkCollectionSync, {
     onSuccess(res: DatasetCollectionSyncResultEnum) {
       getData(pageNum);
       toast({
         status: 'success',
-        title: t(DatasetCollectionSyncResultMap[res]?.label)
+        title: t(DatasetCollectionSyncResultMap[res]?.label as any)
       });
     },
-    errorToast: t('core.dataset.error.Start Sync Failed')
+    errorToast: t('common:core.dataset.error.Start Sync Failed')
   });
 
   const hasTrainingData = useMemo(
     () => !!formatCollections.find((item) => item.trainingAmount > 0),
     [formatCollections]
   );
-  const isLoading = useMemo(
-    () => isDeleting || isSyncing || (isGetting && collections.length === 0),
-    [collections.length, isDeleting, isGetting, isSyncing]
-  );
 
   useQuery(
     ['refreshCollection'],
     () => {
-      getData(1);
+      getData(pageNum);
       if (datasetDetail.status === DatasetStatusEnum.syncing) {
         loadDatasetDetail(datasetDetail._id);
       }
@@ -174,90 +165,66 @@ const CollectionCard = () => {
     }
   );
 
+  const { getBoxProps, isDropping } = useFolderDrag({
+    activeStyles: {
+      bg: 'primary.100'
+    },
+    onDrop: async (dragId: string, targetId: string) => {
+      try {
+        await putDatasetCollectionById({
+          id: dragId,
+          parentId: targetId
+        });
+        getData(pageNum);
+      } catch (error) {}
+    }
+  });
+
+  const isLoading =
+    isUpdating || isDeleting || isSyncing || (isGetting && collections.length === 0) || isDropping;
+
   return (
     <MyBox isLoading={isLoading} h={'100%'} py={[2, 4]}>
-      <Flex ref={BoxRef} flexDirection={'column'} py={[1, 3]} h={'100%'}>
+      <Flex ref={BoxRef} flexDirection={'column'} py={[1, 0]} h={'100%'} px={[2, 6]}>
         {/* header */}
         <Header />
 
         {/* collection table */}
-        <TableContainer
-          px={[2, 6]}
-          mt={[0, 3]}
-          position={'relative'}
-          flex={'1 0 0'}
-          overflowY={'auto'}
-        >
-          <Table variant={'simple'} fontSize={'sm'} draggable={false}>
+        <TableContainer mt={3} overflowY={'auto'} fontSize={'sm'}>
+          <Table variant={'simple'} draggable={false}>
             <Thead draggable={false}>
-              <Tr bg={'myGray.100'} mb={2}>
-                <Th borderLeftRadius={'md'} overflow={'hidden'} borderBottom={'none'} py={4}>
-                  #
-                </Th>
-                <Th borderBottom={'none'} py={4}>
-                  {t('common.Name')}
-                </Th>
-                <Th borderBottom={'none'} py={4}>
-                  {t('dataset.collections.Data Amount')}
-                </Th>
-                <Th borderBottom={'none'} py={4}>
-                  {t('core.dataset.Sync Time')}
-                </Th>
-                <Th borderBottom={'none'} py={4}>
-                  {t('common.Status')}
-                </Th>
-                <Th borderRightRadius={'md'} overflow={'hidden'} borderBottom={'none'} py={4} />
+              <Tr>
+                <Th py={4}>{t('common:common.Name')}</Th>
+                <Th py={4}>{datasetT('collection.Training type')}</Th>
+                <Th py={4}>{t('common:dataset.collections.Data Amount')}</Th>
+                <Th py={4}>{datasetT('collection.Create update time')}</Th>
+                <Th py={4}>{t('common:common.Status')}</Th>
+                <Th py={4}>{datasetT('Enable')}</Th>
+                <Th py={4} />
               </Tr>
             </Thead>
             <Tbody>
-              {formatCollections.map((collection, index) => (
+              <Tr h={'5px'} />
+              {formatCollections.map((collection) => (
                 <Tr
                   key={collection._id}
-                  _hover={{ bg: 'myWhite.600' }}
+                  _hover={{ bg: 'myGray.50' }}
                   cursor={'pointer'}
-                  data-drag-id={
-                    collection.type === DatasetCollectionTypeEnum.folder
-                      ? collection._id
-                      : undefined
-                  }
-                  bg={dragTargetId === collection._id ? 'primary.100' : ''}
-                  userSelect={'none'}
-                  onDragStart={(e) => {
-                    setDragStartId(collection._id);
-                  }}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    const targetId = e.currentTarget.getAttribute('data-drag-id');
-                    if (!targetId) return;
-                    DatasetCollectionTypeEnum.folder && setDragTargetId(targetId);
-                  }}
-                  onDragLeave={(e) => {
-                    e.preventDefault();
-                    setDragTargetId(undefined);
-                  }}
-                  onDrop={async (e) => {
-                    e.preventDefault();
-                    if (!dragTargetId || !dragStartId || dragTargetId === dragStartId) return;
-                    // update parentId
-                    try {
-                      await putDatasetCollectionById({
-                        id: dragStartId,
-                        parentId: dragTargetId
-                      });
-                      getData(pageNum);
-                    } catch (error) {}
-                    setDragTargetId(undefined);
-                  }}
+                  {...getBoxProps({
+                    dataId: collection._id,
+                    isFolder: collection.type === DatasetCollectionTypeEnum.folder
+                  })}
+                  draggable={false}
                   onClick={() => {
                     if (collection.type === DatasetCollectionTypeEnum.folder) {
-                      router.replace({
+                      router.push({
                         query: {
                           ...router.query,
                           parentId: collection._id
                         }
                       });
                     } else {
-                      router.replace({
+                      router.push({
                         query: {
                           ...router.query,
                           collectionId: collection._id,
@@ -267,52 +234,60 @@ const CollectionCard = () => {
                     }
                   }}
                 >
-                  <Td w={'50px'}>{index + 1}</Td>
-                  <Td minW={'150px'} maxW={['200px', '300px']} draggable>
+                  <Td minW={'150px'} maxW={['200px', '300px']} draggable py={2}>
                     <Flex alignItems={'center'}>
-                      <MyIcon name={collection.icon as any} w={'16px'} mr={2} />
-                      <MyTooltip label={t('common.folder.Drag Tip')} shouldWrapChildren={false}>
-                        <Box fontWeight={'bold'} className="textEllipsis">
+                      <MyIcon name={collection.icon as any} w={'1.25rem'} mr={2} />
+                      <MyTooltip
+                        label={t('common:common.folder.Drag Tip')}
+                        shouldWrapChildren={false}
+                      >
+                        <Box color={'myGray.900'} fontWeight={'500'} className="textEllipsis">
                           {collection.name}
                         </Box>
                       </MyTooltip>
                     </Flex>
+                    {feConfigs?.isPlus && !!collection.tags?.length && (
+                      <TagsPopOver currentCollection={collection} />
+                    )}
                   </Td>
-                  <Td fontSize={'md'}>{collection.dataAmount || '-'}</Td>
-                  <Td>{dayjs(collection.updateTime).format('YYYY/MM/DD HH:mm')}</Td>
-                  <Td>
-                    <Box
-                      display={'inline-flex'}
-                      alignItems={'center'}
-                      w={'auto'}
-                      color={collection.color}
-                      bg={collection.bg}
-                      borderWidth={'1px'}
-                      borderColor={collection.borderColor}
-                      px={3}
-                      py={1}
-                      borderRadius={'md'}
-                      _before={{
-                        content: '""',
-                        w: '6px',
-                        h: '6px',
-                        mr: 2,
-                        borderRadius: 'lg',
-                        bg: collection.color
-                      }}
-                    >
-                      {t(collection.statusText)}
-                    </Box>
+                  <Td py={2}>
+                    {!checkCollectionIsFolder(collection.type) ? (
+                      <>{t((getTrainingTypeLabel(collection.trainingType) || '-') as any)}</>
+                    ) : (
+                      '-'
+                    )}
                   </Td>
-                  <Td onClick={(e) => e.stopPropagation()}>
-                    {collection.canWrite && userInfo?.team?.role !== TeamMemberRoleEnum.visitor && (
+                  <Td py={2}>{collection.dataAmount || '-'}</Td>
+                  <Td fontSize={'xs'} py={2} color={'myGray.500'}>
+                    <Box>{formatTime2YMDHM(collection.createTime)}</Box>
+                    <Box>{formatTime2YMDHM(collection.updateTime)}</Box>
+                  </Td>
+                  <Td py={2}>
+                    <MyTag showDot colorSchema={collection.colorSchema as any} type={'borderFill'}>
+                      {t(collection.statusText as any)}
+                    </MyTag>
+                  </Td>
+                  <Td py={2} onClick={(e) => e.stopPropagation()}>
+                    <Switch
+                      isChecked={!collection.forbid}
+                      size={'sm'}
+                      onChange={(e) =>
+                        onUpdateCollection({
+                          id: collection._id,
+                          forbid: !e.target.checked
+                        })
+                      }
+                    />
+                  </Td>
+                  <Td py={2} onClick={(e) => e.stopPropagation()}>
+                    {collection.permission.hasWritePer && (
                       <MyMenu
                         width={100}
                         offset={[-70, 5]}
                         Button={
                           <MenuButton
-                            w={'22px'}
-                            h={'22px'}
+                            w={'1.5rem'}
+                            h={'1.5rem'}
                             borderRadius={'md'}
                             _hover={{
                               color: 'primary.500',
@@ -324,8 +299,8 @@ const CollectionCard = () => {
                             <MyIcon
                               className="icon"
                               name={'more'}
-                              h={'16px'}
-                              w={'16px'}
+                              h={'1rem'}
+                              w={'1rem'}
                               px={1}
                               py={1}
                               borderRadius={'md'}
@@ -334,72 +309,84 @@ const CollectionCard = () => {
                           </MenuButton>
                         }
                         menuList={[
-                          ...(collection.type === DatasetCollectionTypeEnum.link
-                            ? [
-                                {
-                                  label: (
-                                    <Flex alignItems={'center'}>
-                                      <MyIcon name={'common/refreshLight'} w={'14px'} mr={2} />
-                                      {t('core.dataset.collection.Sync')}
-                                    </Flex>
-                                  ),
-                                  onClick: () =>
-                                    openSyncConfirm(() => {
-                                      onclickStartSync(collection._id);
-                                    })()
-                                }
-                              ]
-                            : []),
                           {
-                            label: (
-                              <Flex alignItems={'center'}>
-                                <MyIcon name={'common/file/move'} w={'14px'} mr={2} />
-                                {t('Move')}
-                              </Flex>
-                            ),
-                            onClick: () => setMoveCollectionData({ collectionId: collection._id })
+                            children: [
+                              ...(collection.type === DatasetCollectionTypeEnum.link
+                                ? [
+                                    {
+                                      label: (
+                                        <Flex alignItems={'center'}>
+                                          <MyIcon
+                                            name={'common/refreshLight'}
+                                            w={'0.9rem'}
+                                            mr={2}
+                                          />
+                                          {t('common:core.dataset.collection.Sync')}
+                                        </Flex>
+                                      ),
+                                      onClick: () =>
+                                        openSyncConfirm(() => {
+                                          onclickStartSync(collection._id);
+                                        })()
+                                    }
+                                  ]
+                                : []),
+                              {
+                                label: (
+                                  <Flex alignItems={'center'}>
+                                    <MyIcon name={'common/file/move'} w={'0.9rem'} mr={2} />
+                                    {t('common:Move')}
+                                  </Flex>
+                                ),
+                                onClick: () =>
+                                  setMoveCollectionData({ collectionId: collection._id })
+                              },
+                              {
+                                label: (
+                                  <Flex alignItems={'center'}>
+                                    <MyIcon name={'edit'} w={'0.9rem'} mr={2} />
+                                    {t('common:Rename')}
+                                  </Flex>
+                                ),
+                                onClick: () =>
+                                  onOpenEditTitleModal({
+                                    defaultVal: collection.name,
+                                    onSuccess: (newName) =>
+                                      onUpdateCollection({
+                                        id: collection._id,
+                                        name: newName
+                                      })
+                                  })
+                              }
+                            ]
                           },
                           {
-                            label: (
-                              <Flex alignItems={'center'}>
-                                <MyIcon name={'edit'} w={'14px'} mr={2} />
-                                {t('Rename')}
-                              </Flex>
-                            ),
-                            onClick: () =>
-                              onOpenEditTitleModal({
-                                defaultVal: collection.name,
-                                onSuccess: (newName) => {
-                                  onUpdateCollectionName({
-                                    collectionId: collection._id,
-                                    name: newName
-                                  });
-                                }
-                              })
-                          },
-                          {
-                            label: (
-                              <Flex alignItems={'center'}>
-                                <MyIcon
-                                  mr={1}
-                                  name={'delete'}
-                                  w={'14px'}
-                                  _hover={{ color: 'red.600' }}
-                                />
-                                <Box>{t('common.Delete')}</Box>
-                              </Flex>
-                            ),
-                            type: 'danger',
-                            onClick: () =>
-                              openDeleteConfirm(
-                                () => {
-                                  onDelCollection(collection._id);
-                                },
-                                undefined,
-                                collection.type === DatasetCollectionTypeEnum.folder
-                                  ? t('dataset.collections.Confirm to delete the folder')
-                                  : t('dataset.Confirm to delete the file')
-                              )()
+                            children: [
+                              {
+                                label: (
+                                  <Flex alignItems={'center'}>
+                                    <MyIcon
+                                      mr={1}
+                                      name={'delete'}
+                                      w={'0.9rem'}
+                                      _hover={{ color: 'red.600' }}
+                                    />
+                                    <Box>{t('common:common.Delete')}</Box>
+                                  </Flex>
+                                ),
+                                type: 'danger',
+                                onClick: () =>
+                                  openDeleteConfirm(
+                                    () => {
+                                      onDelCollection(collection._id);
+                                    },
+                                    undefined,
+                                    collection.type === DatasetCollectionTypeEnum.folder
+                                      ? t('common:dataset.collections.Confirm to delete the folder')
+                                      : t('common:dataset.Confirm to delete the file')
+                                  )()
+                              }
+                            ]
                           }
                         ]}
                       />
@@ -436,7 +423,7 @@ const CollectionCard = () => {
               setMoveCollectionData(undefined);
               toast({
                 status: 'success',
-                title: t('common.folder.Move Success')
+                title: t('common:common.folder.Move Success')
               });
             }}
           />

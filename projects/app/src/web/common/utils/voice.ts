@@ -1,3 +1,5 @@
+'use client';
+
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useToast } from '@fastgpt/web/hooks/useToast';
 import { getErrText } from '@fastgpt/global/common/error/utils';
@@ -21,9 +23,10 @@ export const useAudioPlay = (props?: OutLinkChatAuthProps & { ttsConfig?: AppTTS
 
   // Check whether the voice is supported
   const hasAudio = (() => {
+    if (typeof window === 'undefined') return false;
     if (ttsConfig?.type === TTSTypeEnum.none) return false;
     if (ttsConfig?.type === TTSTypeEnum.model) return true;
-    const voices = window.speechSynthesis?.getVoices?.() || []; // 获取语言包
+    const voices = window?.speechSynthesis?.getVoices?.() || []; // 获取语言包
     const voice = voices.find((item) => {
       return item.lang === 'zh-CN' || item.lang === 'zh';
     });
@@ -59,7 +62,7 @@ export const useAudioPlay = (props?: OutLinkChatAuthProps & { ttsConfig?: AppTTS
         const data = await response.json();
         toast({
           status: 'error',
-          title: getErrText(data, t('core.chat.Audio Speech Error'))
+          title: getErrText(data, t('common:core.chat.Audio Speech Error'))
         });
         return Promise.reject(data);
       }
@@ -69,9 +72,9 @@ export const useAudioPlay = (props?: OutLinkChatAuthProps & { ttsConfig?: AppTTS
   );
   const playWebAudio = useCallback((text: string) => {
     // window speech
-    window.speechSynthesis?.cancel();
+    window?.speechSynthesis?.cancel();
     const msg = new SpeechSynthesisUtterance(text);
-    const voices = window.speechSynthesis?.getVoices?.() || []; // 获取语言包
+    const voices = window?.speechSynthesis?.getVoices?.() || []; // 获取语言包
     const voice = voices.find((item) => {
       return item.lang === 'zh-CN';
     });
@@ -116,7 +119,7 @@ export const useAudioPlay = (props?: OutLinkChatAuthProps & { ttsConfig?: AppTTS
         if (!MediaSource) {
           toast({
             status: 'error',
-            title: t('core.chat.Audio Not Support')
+            title: t('common:core.chat.Audio Not Support')
           });
           return;
         }
@@ -191,7 +194,7 @@ export const useAudioPlay = (props?: OutLinkChatAuthProps & { ttsConfig?: AppTTS
         } catch (error) {
           toast({
             status: 'error',
-            title: getErrText(error, t('core.chat.Audio Speech Error'))
+            title: getErrText(error, t('common:core.chat.Audio Speech Error'))
           });
           reject(error);
         }
@@ -212,7 +215,7 @@ export const useAudioPlay = (props?: OutLinkChatAuthProps & { ttsConfig?: AppTTS
     if (!MediaSource) {
       return toast({
         status: 'error',
-        title: t('core.chat.Audio Not Support')
+        title: t('common:core.chat.Audio Not Support')
       });
     }
     cancelAudio();

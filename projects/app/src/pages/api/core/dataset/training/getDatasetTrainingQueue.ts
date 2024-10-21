@@ -1,10 +1,10 @@
-import type { ApiRequestProps, ApiResponseType } from '@fastgpt/service/type/next';
+import type { ApiRequestProps } from '@fastgpt/service/type/next';
 import { NextAPI } from '@/service/middleware/entry';
-import { authDataset } from '@fastgpt/service/support/permission/auth/dataset';
+import { authDataset } from '@fastgpt/service/support/permission/dataset/auth';
 import { MongoDatasetData } from '@fastgpt/service/core/dataset/data/schema';
 import { MongoDatasetTraining } from '@fastgpt/service/core/dataset/training/schema';
-
-type Props = {};
+import { ReadPermissionVal } from '@fastgpt/global/support/permission/constant';
+import { readFromSecondary } from '@fastgpt/service/common/mongo/utils';
 
 export type getDatasetTrainingQueueResponse = {
   rebuildingCount: number;
@@ -12,8 +12,7 @@ export type getDatasetTrainingQueueResponse = {
 };
 
 async function handler(
-  req: ApiRequestProps<any, { datasetId: string }>,
-  res: ApiResponseType<any>
+  req: ApiRequestProps<any, { datasetId: string }>
 ): Promise<getDatasetTrainingQueueResponse> {
   const { datasetId } = req.query;
 
@@ -22,12 +21,22 @@ async function handler(
     authToken: true,
     authApiKey: true,
     datasetId,
-    per: 'r'
+    per: ReadPermissionVal
   });
 
   const [rebuildingCount, trainingCount] = await Promise.all([
-    MongoDatasetData.countDocuments({ rebuilding: true, teamId, datasetId }),
-    MongoDatasetTraining.countDocuments({ teamId, datasetId })
+    MongoDatasetData.countDocuments(
+      { rebuilding: true, teamId, datasetId },
+      {
+        ...readFromSecondary
+      }
+    ),
+    MongoDatasetTraining.countDocuments(
+      { teamId, datasetId },
+      {
+        ...readFromSecondary
+      }
+    )
   ]);
 
   return {

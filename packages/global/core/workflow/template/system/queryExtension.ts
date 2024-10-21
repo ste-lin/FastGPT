@@ -3,7 +3,7 @@ import {
   FlowNodeOutputTypeEnum,
   FlowNodeTypeEnum
 } from '../../node/constant';
-import { FlowNodeTemplateType } from '../../type/index.d';
+import { FlowNodeTemplateType } from '../../type/node.d';
 import {
   WorkflowIOValueTypeEnum,
   NodeInputKeyEnum,
@@ -17,17 +17,17 @@ import {
 } from '../input';
 import { LLMModelTypeEnum } from '../../../ai/constants';
 import { getHandleConfig } from '../utils';
+import { i18nT } from '../../../../../web/i18n/utils';
 
 export const AiQueryExtension: FlowNodeTemplateType = {
-  id: FlowNodeTypeEnum.chatNode,
+  id: FlowNodeTypeEnum.queryExtension,
   templateType: FlowNodeTemplateTypeEnum.other,
   flowNodeType: FlowNodeTypeEnum.queryExtension,
   sourceHandle: getHandleConfig(true, true, true, true),
   targetHandle: getHandleConfig(true, true, true, true),
-  avatar: '/imgs/workflow/cfr.svg',
-  name: '问题优化',
-  intro:
-    '使用问题优化功能，可以提高知识库连续对话时搜索的精度。使用该功能后，会先利用 AI 根据上下文构建一个或多个新的检索词，这些检索词更利于进行知识库搜索。该模块已内置在知识库搜索模块中，如果您仅进行一次知识库搜索，可直接使用知识库内置的补全功能。',
+  avatar: 'core/workflow/template/queryExtension',
+  name: i18nT('workflow:question_optimization'),
+  intro: i18nT('workflow:intro_question_optimization'),
   showStatus: true,
   version: '481',
   inputs: [
@@ -38,11 +38,11 @@ export const AiQueryExtension: FlowNodeTemplateType = {
     {
       key: NodeInputKeyEnum.aiSystemPrompt,
       renderTypeList: [FlowNodeInputTypeEnum.textarea, FlowNodeInputTypeEnum.reference],
-      label: 'core.app.edit.Query extension background prompt',
+      label: i18nT('common:core.app.edit.Query extension background prompt'),
       max: 300,
       valueType: WorkflowIOValueTypeEnum.string,
-      description: 'core.app.edit.Query extension background tip',
-      placeholder: 'core.module.QueryExtension.placeholder'
+      description: i18nT('common:core.app.edit.Query extension background tip'),
+      placeholder: i18nT('common:core.module.QueryExtension.placeholder')
     },
     Input_Template_History,
     Input_Template_UserChatInput
@@ -51,8 +51,8 @@ export const AiQueryExtension: FlowNodeTemplateType = {
     {
       id: NodeOutputKeyEnum.text,
       key: NodeOutputKeyEnum.text,
-      label: 'core.module.output.label.query extension result',
-      description: 'core.module.output.description.query extension result',
+      label: i18nT('common:core.module.output.label.query extension result'),
+      description: i18nT('common:core.module.output.description.query extension result'),
       valueType: WorkflowIOValueTypeEnum.string,
       type: FlowNodeOutputTypeEnum.static
     }

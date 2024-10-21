@@ -16,6 +16,8 @@ const CustomRightDrawer = ({
   iconSrc,
   title,
   maxW = ['90vw', '30vw'],
+  top = 16,
+  bottom = 0,
   children,
   isLoading,
   showMask = true,
@@ -31,7 +33,8 @@ const CustomRightDrawer = ({
       zIndex={100}
       maxW={maxW}
       w={'100%'}
-      h={'90vh'}
+      top={top}
+      bottom={bottom}
       borderLeftRadius={'lg'}
       border={'base'}
       boxShadow={'2'}
@@ -56,7 +59,7 @@ const CustomRightDrawer = ({
             )}
           </>
         )}
-        <Box flex={'1'} fontSize={'lg'}>
+        <Box flex={'1'} fontSize={'md'}>
           {title}
         </Box>
         <CloseButton position={'relative'} fontSize={'sm'} top={0} right={0} onClick={onClose} />

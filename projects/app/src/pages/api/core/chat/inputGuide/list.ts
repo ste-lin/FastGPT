@@ -4,7 +4,8 @@ import { PaginationProps, PaginationResponse } from '@fastgpt/web/common/fetch/t
 import { NextAPI } from '@/service/middleware/entry';
 import { ApiRequestProps } from '@fastgpt/service/type/next';
 import { ChatInputGuideSchemaType } from '@fastgpt/global/core/chat/inputGuide/type';
-import { authApp } from '@fastgpt/service/support/permission/auth/app';
+import { authApp } from '@fastgpt/service/support/permission/app/auth';
+import { ReadPermissionVal } from '@fastgpt/global/support/permission/constant';
 
 export type ChatInputGuideProps = PaginationProps<{
   appId: string;
@@ -13,12 +14,12 @@ export type ChatInputGuideProps = PaginationProps<{
 export type ChatInputGuideResponse = PaginationResponse<ChatInputGuideSchemaType>;
 
 async function handler(
-  req: ApiRequestProps<{}, ChatInputGuideProps>,
+  req: ApiRequestProps<ChatInputGuideProps>,
   res: NextApiResponse<any>
 ): Promise<ChatInputGuideResponse> {
-  const { appId, pageSize, current, searchKey } = req.query;
+  const { appId, pageSize, offset, searchKey } = req.body;
 
-  await authApp({ req, appId, authToken: true, per: 'r' });
+  await authApp({ req, appId, authToken: true, per: ReadPermissionVal });
 
   const params = {
     appId,
@@ -26,10 +27,7 @@ async function handler(
   };
 
   const [result, total] = await Promise.all([
-    MongoChatInputGuide.find(params)
-      .sort({ _id: -1 })
-      .skip(pageSize * (current - 1))
-      .limit(pageSize),
+    MongoChatInputGuide.find(params).sort({ _id: -1 }).skip(offset).limit(pageSize),
     MongoChatInputGuide.countDocuments(params)
   ]);
 

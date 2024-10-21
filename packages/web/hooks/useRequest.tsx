@@ -27,7 +27,7 @@ export const useRequest = ({ successToast, errorToast, onSuccess, onError, ...pr
       onError?.(err, variables, context);
 
       if (errorToast !== undefined) {
-        const errText = t(getErrText(err, errorToast || ''));
+        const errText = t(getErrText(err, errorToast || '') as any);
         if (errText) {
           toast({
             title: errText,
@@ -53,17 +53,18 @@ export const useRequest2 = <TData, TParams extends any[]>(
   plugin?: UseRequestFunProps<TData, TParams>[2]
 ) => {
   const { t } = useTranslation();
-  const { errorToast, successToast, ...rest } = options || {};
+  const { errorToast = 'Error', successToast, ...rest } = options || {};
   const { toast } = useToast();
 
   const res = ahooksUseRequest<TData, TParams>(
     server,
     {
+      manual: true,
       ...rest,
       onError: (err, params) => {
         rest?.onError?.(err, params);
         if (errorToast !== undefined) {
-          const errText = t(getErrText(err, errorToast || ''));
+          const errText = t(getErrText(err, errorToast || '') as any);
           if (errText) {
             toast({
               title: errText,

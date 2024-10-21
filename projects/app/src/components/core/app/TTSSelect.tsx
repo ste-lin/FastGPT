@@ -1,5 +1,5 @@
 import MyIcon from '@fastgpt/web/components/common/Icon';
-import MyTooltip from '@/components/MyTooltip';
+import MyTooltip from '@fastgpt/web/components/common/MyTooltip';
 import { Box, Button, Flex, ModalBody, useDisclosure, Image } from '@chakra-ui/react';
 import React, { useCallback, useMemo } from 'react';
 import { useTranslation } from 'next-i18next';
@@ -12,6 +12,7 @@ import MySlider from '@/components/Slider';
 import MySelect from '@fastgpt/web/components/common/MySelect';
 import { defaultTTSConfig } from '@fastgpt/global/core/app/constants';
 import ChatFunctionTip from './Tip';
+import FormLabel from '@fastgpt/web/components/common/MyBox/FormLabel';
 
 const TTSSelect = ({
   value = defaultTTSConfig,
@@ -26,8 +27,8 @@ const TTSSelect = ({
 
   const list = useMemo(
     () => [
-      { label: t('core.app.tts.Close'), value: TTSTypeEnum.none },
-      { label: t('core.app.tts.Web'), value: TTSTypeEnum.web },
+      { label: t('common:core.app.tts.Close'), value: TTSTypeEnum.none },
+      { label: t('common:core.app.tts.Web'), value: TTSTypeEnum.web },
       ...audioSpeechModelList.map((item) => item?.voices || []).flat()
     ],
     [audioSpeechModelList, t]
@@ -43,7 +44,7 @@ const TTSSelect = ({
     return value.voice;
   }, [value]);
   const formLabel = useMemo(
-    () => list.find((item) => item.value === formatValue)?.label || t('common.UnKnow'),
+    () => list.find((item) => item.value === formatValue)?.label || t('common:common.UnKnow'),
     [formatValue, list, t]
   );
 
@@ -81,10 +82,10 @@ const TTSSelect = ({
   return (
     <Flex alignItems={'center'}>
       <MyIcon name={'core/app/simpleMode/tts'} mr={2} w={'20px'} />
-      <Box fontWeight={'medium'}>{t('core.app.TTS')}</Box>
+      <FormLabel>{t('common:core.app.TTS')}</FormLabel>
       <ChatFunctionTip type={'tts'} />
       <Box flex={1} />
-      <MyTooltip label={t('core.app.Select TTS')}>
+      <MyTooltip label={t('common:core.app.Select TTS')}>
         <Button
           variant={'transparentBase'}
           iconSpacing={1}
@@ -96,23 +97,19 @@ const TTSSelect = ({
         </Button>
       </MyTooltip>
       <MyModal
-        title={
-          <>
-            <MyIcon name={'core/app/simpleMode/tts'} mr={2} w={'20px'} />
-            {t('core.app.TTS')}
-          </>
-        }
+        iconSrc="core/app/simpleMode/tts"
+        title={t('common:core.app.TTS')}
         isOpen={isOpen}
         onClose={onCloseTTSModal}
         w={'500px'}
       >
         <ModalBody px={[5, 16]} py={[4, 8]}>
           <Flex justifyContent={'space-between'} alignItems={'center'}>
-            {t('core.app.tts.Speech model')}
+            <FormLabel>{t('common:core.app.tts.Speech model')}</FormLabel>
             <MySelect w={'220px'} value={formatValue} list={list} onchange={onclickChange} />
           </Flex>
           <Flex mt={8} justifyContent={'space-between'}>
-            {t('core.app.tts.Speech speed')}
+            <FormLabel>{t('common:core.app.tts.Speech speed')}</FormLabel>
             <MySlider
               markList={[
                 { label: '0.3', value: 0.3 },
@@ -144,7 +141,7 @@ const TTSSelect = ({
                     leftIcon={<MyIcon name={'core/chat/stopSpeech'} w={'16px'} />}
                     onClick={cancelAudio}
                   >
-                    {t('core.chat.tts.Stop Speech')}
+                    {t('common:core.chat.tts.Stop Speech')}
                   </Button>
                 </Flex>
               ) : (
@@ -153,11 +150,11 @@ const TTSSelect = ({
                   leftIcon={<MyIcon name={'core/app/headphones'} w={'16px'} />}
                   onClick={() => {
                     playAudioByText({
-                      text: t('core.app.tts.Test Listen Text')
+                      text: t('common:core.app.tts.Test Listen Text')
                     });
                   }}
                 >
-                  {t('core.app.tts.Test Listen')}
+                  {t('common:core.app.tts.Test Listen')}
                 </Button>
               )}
             </Flex>
