@@ -114,7 +114,7 @@ const LoginForm = ({ setPageType, loginSuccess }: Props) => {
             })}
           ></Input>
         </FormControl>
-        {feConfigs?.docUrl && (
+        {/*{feConfigs?.docUrl && (
           <Flex alignItems={'center'} mt={7} fontSize={'mini'}>
             {t('login:policy_tip')}
             <Link
@@ -134,7 +134,7 @@ const LoginForm = ({ setPageType, loginSuccess }: Props) => {
               {t('login:privacy')}
             </Link>
           </Flex>
-        )}
+        )}*/}
 
         <Button
           type="submit"

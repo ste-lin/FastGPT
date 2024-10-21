@@ -170,7 +170,7 @@ const Login = ({ ChineseRedirectUrl }: { ChineseRedirectUrl: string }) => {
               </Center>
             )}
           </Box>
-          {feConfigs?.concatMd && (
+          {/*{feConfigs?.concatMd && (
             <Box
               mt={8}
               color={'primary.700'}
@@ -180,7 +180,7 @@ const Login = ({ ChineseRedirectUrl }: { ChineseRedirectUrl: string }) => {
             >
               {t('common:support.user.login.can_not_login')}
             </Box>
-          )}
+          )}*/}
         </Flex>
 
         {isOpen && <CommunityModal onClose={onClose} />}
