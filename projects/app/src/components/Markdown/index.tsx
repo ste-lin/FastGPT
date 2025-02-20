@@ -10,31 +10,38 @@ import RehypeExternalLinks from 'rehype-external-links';
 import styles from './index.module.scss';
 import dynamic from 'next/dynamic';
 
-import { Link, Button, Box } from '@chakra-ui/react';
-import MyTooltip from '@fastgpt/web/components/common/MyTooltip';
-import { useTranslation } from 'next-i18next';
-import { EventNameEnum, eventBus } from '@/web/common/utils/eventbus';
-import MyIcon from '@fastgpt/web/components/common/Icon';
-import { MARKDOWN_QUOTE_SIGN } from '@fastgpt/global/core/chat/constants';
+import { Box } from '@chakra-ui/react';
 import { CodeClassNameEnum } from './utils';
 
-const CodeLight = dynamic(() => import('./CodeLight'), { ssr: false });
+const CodeLight = dynamic(() => import('./codeBlock/CodeLight'), { ssr: false });
 const MermaidCodeBlock = dynamic(() => import('./img/MermaidCodeBlock'), { ssr: false });
 const MdImage = dynamic(() => import('./img/Image'), { ssr: false });
 const EChartsCodeBlock = dynamic(() => import('./img/EChartsCodeBlock'), { ssr: false });
+const IframeCodeBlock = dynamic(() => import('./codeBlock/Iframe'), { ssr: false });
+const IframeHtmlCodeBlock = dynamic(() => import('./codeBlock/iframe-html'), { ssr: false });
+const VideoBlock = dynamic(() => import('./codeBlock/Video'), { ssr: false });
+const AudioBlock = dynamic(() => import('./codeBlock/Audio'), { ssr: false });
 
 const ChatGuide = dynamic(() => import('./chat/Guide'), { ssr: false });
 const QuestionGuide = dynamic(() => import('./chat/QuestionGuide'), { ssr: false });
+const A = dynamic(() => import('./A'), { ssr: false });
 
-const Markdown = ({
-  source = '',
-  showAnimation = false,
-  isDisabled = false
-}: {
+type Props = {
   source?: string;
   showAnimation?: boolean;
   isDisabled?: boolean;
-}) => {
+  forbidZhFormat?: boolean;
+};
+const Markdown = (props: Props) => {
+  const source = props.source || '';
+
+  if (source.length < 200000) {
+    return <MarkdownRender {...props} />;
+  }
+
+  return <Box whiteSpace={'pre-wrap'}>{source}</Box>;
+};
+const MarkdownRender = ({ source = '', showAnimation, isDisabled, forbidZhFormat }: Props) => {
   const components = useMemo<any>(
     () => ({
       img: Image,
@@ -46,15 +53,38 @@ const Markdown = ({
   );
 
   const formatSource = useMemo(() => {
-    const formatSource = source
+    if (showAnimation || forbidZhFormat) return source;
+
+    // 保护 URL 格式：https://, http://, /api/xxx
+    const urlPlaceholders: string[] = [];
+    const textWithProtectedUrls = source.replace(
+      /https?:\/\/(?:(?:[\w-]+\.)+[a-zA-Z]{2,6}|localhost)(?::\d{2,5})?(?:\/[\w\-./?%&=@]*)?/g,
+      (match) => {
+        urlPlaceholders.push(match);
+        return `__URL_${urlPlaceholders.length - 1}__ `;
+      }
+    );
+
+    // 处理中文与英文数字之间的分词
+    const textWithSpaces = textWithProtectedUrls
       .replace(
         /([\u4e00-\u9fa5\u3000-\u303f])([a-zA-Z0-9])|([a-zA-Z0-9])([\u4e00-\u9fa5\u3000-\u303f])/g,
         '$1$3 $2$4'
-      ) // Chinese and english chars separated by space
-      .replace(/\n*(\[QUOTE SIGN\]\(.*\))/g, '$1');
+      )
+      // 处理引用标记
+      .replace(/\n*(\[QUOTE SIGN\]\(.*\))/g, '$1')
+      // 处理 [quote:id] 格式引用，将 [quote:675934a198f46329dfc6d05a] 转换为 [675934a198f46329dfc6d05a](QUOTE)
+      .replace(/\[quote:?\s*([a-f0-9]{24})\](?!\()/gi, '[$1](QUOTE)')
+      .replace(/\[([a-f0-9]{24})\](?!\()/g, '[$1](QUOTE)');
 
-    return formatSource;
-  }, [source]);
+    // 还原 URL
+    const finalText = textWithSpaces.replace(
+      /__URL_(\d+)__/g,
+      (_, index) => `${urlPlaceholders[parseInt(index)]}`
+    );
+
+    return finalText;
+  }, [forbidZhFormat, showAnimation, source]);
 
   const urlTransform = useCallback((val: string) => {
     return val;
@@ -101,6 +131,22 @@ function Code(e: any) {
     if (codeType === CodeClassNameEnum.echarts) {
       return <EChartsCodeBlock code={strChildren} />;
     }
+    if (codeType === CodeClassNameEnum.iframe) {
+      return <IframeCodeBlock code={strChildren} />;
+    }
+    if (codeType && codeType.toLowerCase() === CodeClassNameEnum.html) {
+      return (
+        <IframeHtmlCodeBlock className={className} codeBlock={codeBlock} match={match}>
+          {children}
+        </IframeHtmlCodeBlock>
+      );
+    }
+    if (codeType === CodeClassNameEnum.video) {
+      return <VideoBlock code={strChildren} />;
+    }
+    if (codeType === CodeClassNameEnum.audio) {
+      return <AudioBlock code={strChildren} />;
+    }
 
     return (
       <CodeLight className={className} codeBlock={codeBlock} match={match}>
@@ -114,53 +160,6 @@ function Code(e: any) {
 
 function Image({ src }: { src?: string }) {
   return <MdImage src={src} />;
-}
-
-function A({ children, ...props }: any) {
-  const { t } = useTranslation();
-
-  // empty href link
-  if (!props.href && typeof children?.[0] === 'string') {
-    const text = useMemo(() => String(children), [children]);
-
-    return (
-      <MyTooltip label={t('common:core.chat.markdown.Quick Question')}>
-        <Button
-          variant={'whitePrimary'}
-          size={'xs'}
-          borderRadius={'md'}
-          my={1}
-          onClick={() => eventBus.emit(EventNameEnum.sendQuestion, { text })}
-        >
-          {text}
-        </Button>
-      </MyTooltip>
-    );
-  }
-
-  // quote link(未使用)
-  if (children?.length === 1 && typeof children?.[0] === 'string') {
-    const text = String(children);
-    if (text === MARKDOWN_QUOTE_SIGN && props.href) {
-      return (
-        <MyTooltip label={props.href}>
-          <MyIcon
-            name={'core/chat/quoteSign'}
-            transform={'translateY(-2px)'}
-            w={'18px'}
-            color={'primary.500'}
-            cursor={'pointer'}
-            _hover={{
-              color: 'primary.700'
-            }}
-            // onClick={() => getCollectionSourceAndOpen(props.href)}
-          />
-        </MyTooltip>
-      );
-    }
-  }
-
-  return <Link {...props}>{children}</Link>;
 }
 
 function RewritePre({ children }: any) {

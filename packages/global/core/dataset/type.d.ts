@@ -1,5 +1,4 @@
-import { PermissionSchemaType } from '../../support/permission/type';
-import type { LLMModelItemType, VectorModelItemType } from '../../core/ai/model.d';
+import type { LLMModelItemType, EmbeddingModelItemType } from '../../core/ai/model.d';
 import { PermissionTypeEnum } from '../../support/permission/constant';
 import { PushDatasetDataChunkProps } from './api';
 import {
@@ -11,6 +10,8 @@ import {
 } from './constants';
 import { DatasetPermission } from '../../support/permission/dataset/controller';
 import { Permission } from '../../support/permission/controller';
+import { APIFileServer, FeishuServer, YuqueServer } from './apiDataset';
+import { SourceMemberType } from 'support/user/type';
 
 export type DatasetSchemaType = {
   _id: string;
@@ -31,9 +32,17 @@ export type DatasetSchemaType = {
     url: string;
     selector: string;
   };
+  inheritPermission: boolean;
+  apiServer?: APIFileServer;
+  feishuServer?: FeishuServer;
+  yuqueServer?: YuqueServer;
+
+  autoSync?: boolean;
+
+  // abandon
   externalReadUrl?: string;
-} & PermissionSchemaType;
-// } & PermissionSchemaType;
+  defaultPermission?: number;
+};
 
 export type DatasetCollectionSchemaType = {
   _id: string;
@@ -58,10 +67,13 @@ export type DatasetCollectionSchemaType = {
   fileId?: string; // local file id
   rawLink?: string; // link url
   externalFileId?: string; //external file id
+  apiFileId?: string; // api file id
+  externalFileUrl?: string; // external import url
+
+  nextSyncTime?: Date;
 
   rawTextLength?: number;
   hashRawText?: string;
-  externalFileUrl?: string; // external import url
   metadata?: {
     webPageSelector?: string;
     relatedImgId?: string; // The id of the associated image collections
@@ -101,6 +113,15 @@ export type DatasetDataSchemaType = {
   rebuilding?: boolean;
 };
 
+export type DatasetDataTextSchemaType = {
+  _id: string;
+  teamId: string;
+  datasetId: string;
+  collectionId: string;
+  dataId: string;
+  fullTextToken: string;
+};
+
 export type DatasetTrainingSchemaType = {
   _id: string;
   userId: string;
@@ -122,11 +143,8 @@ export type DatasetTrainingSchemaType = {
   indexes: Omit<DatasetDataIndexItemType, 'dataId'>[];
 };
 
-export type CollectionWithDatasetType = Omit<DatasetCollectionSchemaType, 'datasetId'> & {
-  datasetId: DatasetSchemaType;
-};
-export type DatasetDataWithCollectionType = Omit<DatasetDataSchemaType, 'collectionId'> & {
-  collectionId: DatasetCollectionSchemaType;
+export type CollectionWithDatasetType = DatasetCollectionSchemaType & {
+  dataset: DatasetSchemaType;
 };
 
 /* ================= dataset ===================== */
@@ -134,7 +152,7 @@ export type DatasetSimpleItemType = {
   _id: string;
   avatar: string;
   name: string;
-  vectorModel: VectorModelItemType;
+  vectorModel: EmbeddingModelItemType;
 };
 export type DatasetListItemType = {
   _id: string;
@@ -145,11 +163,14 @@ export type DatasetListItemType = {
   intro: string;
   type: `${DatasetTypeEnum}`;
   permission: DatasetPermission;
-  vectorModel: VectorModelItemType;
-} & PermissionSchemaType;
+  vectorModel: EmbeddingModelItemType;
+  inheritPermission: boolean;
+  private?: boolean;
+  sourceMember?: SourceMemberType;
+};
 
 export type DatasetItemType = Omit<DatasetSchemaType, 'vectorModel' | 'agentModel'> & {
-  vectorModel: VectorModelItemType;
+  vectorModel: EmbeddingModelItemType;
   agentModel: LLMModelItemType;
   permission: DatasetPermission;
 };
@@ -187,7 +208,7 @@ export type DatasetDataItemType = {
   chunkIndex: number;
   indexes: DatasetDataIndexItemType[];
   isOwner: boolean;
-  canWrite: boolean;
+  // permission: DatasetPermission;
 };
 
 /* --------------- file ---------------------- */
@@ -200,7 +221,8 @@ export type DatasetFileSchema = {
   contentType: string;
   metadata: {
     teamId: string;
-    tmbId: string;
+    tmbId?: string;
+    uid: string;
     encoding?: string;
   };
 };
@@ -208,7 +230,7 @@ export type DatasetFileSchema = {
 /* ============= search =============== */
 export type SearchDataResponseItemType = Omit<
   DatasetDataItemType,
-  'teamId' | 'indexes' | 'isOwner' | 'canWrite'
+  'teamId' | 'indexes' | 'isOwner'
 > & {
   score: { type: `${SearchScoreTypeEnum}`; value: number; index: number }[];
   // score: number;

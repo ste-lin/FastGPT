@@ -23,7 +23,6 @@ import {
 } from '@fastgpt/global/core/workflow/node/constant';
 import { getNanoid, replaceVariable } from '@fastgpt/global/common/string/tools';
 import { getSystemTime } from '@fastgpt/global/common/time/timezone';
-import { replaceEditorVariable } from '@fastgpt/global/core/workflow/utils';
 
 import { dispatchWorkflowStart } from './init/workflowStart';
 import { dispatchChatCompletion } from './chat/oneapi';
@@ -38,10 +37,12 @@ import { dispatchQueryExtension } from './tools/queryExternsion';
 import { dispatchRunPlugin } from './plugin/run';
 import { dispatchPluginInput } from './plugin/runInput';
 import { dispatchPluginOutput } from './plugin/runOutput';
-import { removeSystemVariable, valueTypeFormat } from './utils';
+import { formatHttpError, removeSystemVariable, valueTypeFormat } from './utils';
 import {
   filterWorkflowEdges,
-  checkNodeRunStatus
+  checkNodeRunStatus,
+  textAdaptGptResponse,
+  replaceEditorVariable
 } from '@fastgpt/global/core/workflow/runtime/utils';
 import { ChatNodeUsageType } from '@fastgpt/global/support/wallet/bill/type';
 import { dispatchRunTools } from './agent/runTool/index';
@@ -71,6 +72,7 @@ import { dispatchLoopEnd } from './loop/runLoopEnd';
 import { dispatchLoopStart } from './loop/runLoopStart';
 import { dispatchFormInput } from './interactive/formInput';
 import { dispatchToolParams } from './agent/runTool/toolParams';
+import { getErrText } from '@fastgpt/global/common/error/utils';
 
 const callbackMap: Record<FlowNodeTypeEnum, Function> = {
   [FlowNodeTypeEnum.workflowStart]: dispatchWorkflowStart,
@@ -125,7 +127,8 @@ export async function dispatchWorkFlow(data: Props): Promise<DispatchFlowRespons
     runtimeEdges = [],
     histories = [],
     variables = {},
-    user,
+    timezone,
+    externalProvider,
     stream = false,
     ...props
   } = data;
@@ -149,7 +152,7 @@ export async function dispatchWorkFlow(data: Props): Promise<DispatchFlowRespons
       [DispatchNodeResponseKeyEnum.runTimes]: 1,
       [DispatchNodeResponseKeyEnum.assistantResponses]: [],
       [DispatchNodeResponseKeyEnum.toolResponses]: null,
-      newVariables: removeSystemVariable(variables)
+      newVariables: removeSystemVariable(variables, externalProvider.externalWorkflowVariables)
     };
   }
 
@@ -161,10 +164,25 @@ export async function dispatchWorkFlow(data: Props): Promise<DispatchFlowRespons
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('X-Accel-Buffering', 'no');
     res.setHeader('Cache-Control', 'no-cache, no-transform');
+
+    // 10s sends a message to prevent the browser from thinking that the connection is disconnected
+    const sendStreamTimerSign = () => {
+      setTimeout(() => {
+        props?.workflowStreamResponse?.({
+          event: SseResponseEventEnum.answer,
+          data: textAdaptGptResponse({
+            text: ''
+          })
+        });
+        sendStreamTimerSign();
+      }, 10000);
+    };
+    sendStreamTimerSign();
   }
 
   variables = {
     ...getSystemVariable(data),
+    ...externalProvider.externalWorkflowVariables,
     ...variables
   };
 
@@ -186,6 +204,7 @@ export async function dispatchWorkFlow(data: Props): Promise<DispatchFlowRespons
     { inputs = [] }: RuntimeNodeItemType,
     {
       answerText = '',
+      reasoningText,
       responseData,
       nodeDispatchUsages,
       toolResponses,
@@ -195,6 +214,7 @@ export async function dispatchWorkFlow(data: Props): Promise<DispatchFlowRespons
     }: Omit<
       DispatchNodeResultType<{
         [NodeOutputKeyEnum.answerText]?: string;
+        [NodeOutputKeyEnum.reasoningText]?: string;
         [DispatchNodeResponseKeyEnum.nodeResponse]?: ChatHistoryItemResType;
       }>,
       'nodeResponse'
@@ -212,28 +232,46 @@ export async function dispatchWorkFlow(data: Props): Promise<DispatchFlowRespons
       chatNodeUsages = chatNodeUsages.concat(nodeDispatchUsages);
     }
 
-    if (toolResponses !== undefined) {
+    if (toolResponses !== undefined && toolResponses !== null) {
       if (Array.isArray(toolResponses) && toolResponses.length === 0) return;
-      if (typeof toolResponses === 'object' && Object.keys(toolResponses).length === 0) {
+      if (
+        !Array.isArray(toolResponses) &&
+        typeof toolResponses === 'object' &&
+        Object.keys(toolResponses).length === 0
+      )
         return;
-      }
       toolRunResponse = toolResponses;
     }
 
     // Histories store
     if (assistantResponses) {
       chatAssistantResponse = chatAssistantResponse.concat(assistantResponses);
-    } else if (answerText) {
-      // save assistant text response
-      const isResponseAnswerText =
-        inputs.find((item) => item.key === NodeInputKeyEnum.aiChatIsResponseText)?.value ?? true;
-      if (isResponseAnswerText) {
-        chatAssistantResponse.push({
-          type: ChatItemValueTypeEnum.text,
-          text: {
-            content: answerText
-          }
-        });
+    } else {
+      if (reasoningText) {
+        const isResponseReasoningText = inputs.find(
+          (item) => item.key === NodeInputKeyEnum.aiChatReasoning
+        )?.value;
+        if (isResponseReasoningText) {
+          chatAssistantResponse.push({
+            type: ChatItemValueTypeEnum.reasoning,
+            reasoning: {
+              content: reasoningText
+            }
+          });
+        }
+      }
+      if (answerText) {
+        // save assistant text response
+        const isResponseAnswerText =
+          inputs.find((item) => item.key === NodeInputKeyEnum.aiChatIsResponseText)?.value ?? true;
+        if (isResponseAnswerText) {
+          chatAssistantResponse.push({
+            type: ChatItemValueTypeEnum.text,
+            text: {
+              content: answerText
+            }
+          });
+        }
       }
     }
 
@@ -371,6 +409,7 @@ export async function dispatchWorkFlow(data: Props): Promise<DispatchFlowRespons
       node,
       runtimeEdges
     });
+
     const nodeRunResult = await (() => {
       if (status === 'run') {
         nodeRunBeforeHook(node);
@@ -466,17 +505,24 @@ export async function dispatchWorkFlow(data: Props): Promise<DispatchFlowRespons
       : {};
 
     node.inputs.forEach((input) => {
+      // Special input, not format
       if (input.key === dynamicInput?.key) return;
 
-      // replace {{xx}} variables
-      let value = replaceVariable(input.value, variables);
+      // Skip some special key
+      if (
+        [NodeInputKeyEnum.childrenNodeIdList, NodeInputKeyEnum.httpJsonBody].includes(
+          input.key as any
+        )
+      ) {
+        params[input.key] = input.value;
+        return;
+      }
 
-      // replace {{$xx.xx$}} variables
-      value = replaceEditorVariable({
-        text: value,
+      // replace {{$xx.xx$}} and {{xx}} variables
+      let value = replaceEditorVariable({
+        text: input.value,
         nodes: runtimeNodes,
-        variables,
-        runningNode: node
+        variables
       });
 
       // replace reference variables
@@ -490,7 +536,6 @@ export async function dispatchWorkFlow(data: Props): Promise<DispatchFlowRespons
       if (input.canEdit && dynamicInput && params[dynamicInput.key]) {
         params[dynamicInput.key][input.key] = valueTypeFormat(value, input.valueType);
       }
-
       params[input.key] = valueTypeFormat(value, input.valueType);
     });
 
@@ -521,7 +566,8 @@ export async function dispatchWorkFlow(data: Props): Promise<DispatchFlowRespons
       res,
       variables,
       histories,
-      user,
+      timezone,
+      externalProvider,
       stream,
       node,
       runtimeNodes,
@@ -533,7 +579,23 @@ export async function dispatchWorkFlow(data: Props): Promise<DispatchFlowRespons
     // run module
     const dispatchRes: Record<string, any> = await (async () => {
       if (callbackMap[node.flowNodeType]) {
-        return callbackMap[node.flowNodeType](dispatchData);
+        try {
+          return await callbackMap[node.flowNodeType](dispatchData);
+        } catch (error) {
+          // Get source handles of outgoing edges
+          const targetEdges = runtimeEdges.filter((item) => item.source === node.nodeId);
+          const skipHandleIds = targetEdges.map((item) => item.sourceHandle);
+
+          toolRunResponse = getErrText(error);
+
+          // Skip all edges and return error
+          return {
+            [DispatchNodeResponseKeyEnum.nodeResponse]: {
+              error: formatHttpError(error)
+            },
+            [DispatchNodeResponseKeyEnum.skipHandleId]: skipHandleIds
+          };
+        }
       }
       return {};
     })();
@@ -566,6 +628,11 @@ export async function dispatchWorkFlow(data: Props): Promise<DispatchFlowRespons
       };
     }
 
+    // Error
+    if (dispatchRes?.responseData?.error) {
+      addLog.warn('workflow error', dispatchRes.responseData.error);
+    }
+
     return {
       node,
       runStatus: 'run',
@@ -592,79 +659,91 @@ export async function dispatchWorkFlow(data: Props): Promise<DispatchFlowRespons
     };
   }
 
-  // start process width initInput
-  const entryNodes = runtimeNodes.filter((item) => item.isEntry);
-  // reset entry
-  runtimeNodes.forEach((item) => {
-    // Interactive node is not the entry node, return interactive result
-    if (
-      item.flowNodeType !== FlowNodeTypeEnum.userSelect &&
-      item.flowNodeType !== FlowNodeTypeEnum.formInput &&
-      item.flowNodeType !== FlowNodeTypeEnum.tools
-    ) {
-      item.isEntry = false;
-    }
-  });
-  await Promise.all(entryNodes.map((node) => checkNodeCanRun(node)));
+  try {
+    // start process width initInput
+    const entryNodes = runtimeNodes.filter((item) => item.isEntry);
+    // reset entry
+    runtimeNodes.forEach((item) => {
+      // Interactively nodes will use the "isEntry", which does not need to be updated
+      if (
+        item.flowNodeType !== FlowNodeTypeEnum.userSelect &&
+        item.flowNodeType !== FlowNodeTypeEnum.formInput &&
+        item.flowNodeType !== FlowNodeTypeEnum.tools
+      ) {
+        item.isEntry = false;
+      }
+    });
+    await Promise.all(entryNodes.map((node) => checkNodeCanRun(node)));
 
-  // focus try to run pluginOutput
-  const pluginOutputModule = runtimeNodes.find(
-    (item) => item.flowNodeType === FlowNodeTypeEnum.pluginOutput
-  );
-  if (pluginOutputModule && props.mode !== 'debug') {
-    await nodeRunWithActive(pluginOutputModule);
+    // focus try to run pluginOutput
+    const pluginOutputModule = runtimeNodes.find(
+      (item) => item.flowNodeType === FlowNodeTypeEnum.pluginOutput
+    );
+    if (pluginOutputModule && props.mode !== 'debug') {
+      await nodeRunWithActive(pluginOutputModule);
+    }
+
+    // Interactive node
+    const interactiveResult = (() => {
+      if (nodeInteractiveResponse) {
+        const interactiveAssistant = handleInteractiveResult({
+          entryNodeIds: nodeInteractiveResponse.entryNodeIds,
+          interactiveResponse: nodeInteractiveResponse.interactiveResponse
+        });
+        chatAssistantResponse.push(interactiveAssistant);
+        return interactiveAssistant.interactive;
+      }
+    })();
+
+    return {
+      flowResponses: chatResponses,
+      flowUsages: chatNodeUsages,
+      debugResponse: {
+        finishedNodes: runtimeNodes,
+        finishedEdges: runtimeEdges,
+        nextStepRunNodes: debugNextStepRunNodes
+      },
+      workflowInteractiveResponse: interactiveResult,
+      [DispatchNodeResponseKeyEnum.runTimes]: workflowRunTimes,
+      [DispatchNodeResponseKeyEnum.assistantResponses]:
+        mergeAssistantResponseAnswerText(chatAssistantResponse),
+      [DispatchNodeResponseKeyEnum.toolResponses]: toolRunResponse,
+      newVariables: removeSystemVariable(variables, externalProvider.externalWorkflowVariables)
+    };
+  } catch (error) {
+    return Promise.reject(error);
   }
-
-  // Interactive node
-  const interactiveResult = (() => {
-    if (nodeInteractiveResponse) {
-      const interactiveAssistant = handleInteractiveResult({
-        entryNodeIds: nodeInteractiveResponse.entryNodeIds,
-        interactiveResponse: nodeInteractiveResponse.interactiveResponse
-      });
-      chatAssistantResponse.push(interactiveAssistant);
-      return interactiveAssistant.interactive;
-    }
-  })();
-
-  return {
-    flowResponses: chatResponses,
-    flowUsages: chatNodeUsages,
-    debugResponse: {
-      finishedNodes: runtimeNodes,
-      finishedEdges: runtimeEdges,
-      nextStepRunNodes: debugNextStepRunNodes
-    },
-    workflowInteractiveResponse: interactiveResult,
-    [DispatchNodeResponseKeyEnum.runTimes]: workflowRunTimes,
-    [DispatchNodeResponseKeyEnum.assistantResponses]:
-      mergeAssistantResponseAnswerText(chatAssistantResponse),
-    [DispatchNodeResponseKeyEnum.toolResponses]: toolRunResponse,
-    newVariables: removeSystemVariable(variables)
-  };
 }
 
 /* get system variable */
-export function getSystemVariable({
-  user,
+const getSystemVariable = ({
+  timezone,
   runningAppInfo,
   chatId,
   responseChatItemId,
   histories = [],
-  uid
-}: Props): SystemVariablesType {
+  uid,
+  chatConfig
+}: Props): SystemVariablesType => {
+  const variables = chatConfig?.variables || [];
+  const variablesMap = variables.reduce<Record<string, any>>((acc, item) => {
+    acc[item.key] = valueTypeFormat(item.defaultValue, item.valueType);
+    return acc;
+  }, {});
+
   return {
+    ...variablesMap,
     userId: uid,
     appId: String(runningAppInfo.id),
     chatId,
     responseChatItemId,
     histories,
-    cTime: getSystemTime(user.timezone)
+    cTime: getSystemTime(timezone)
   };
-}
+};
 
 /* Merge consecutive text messages into one */
-export const mergeAssistantResponseAnswerText = (response: AIChatItemValueItemType[]) => {
+const mergeAssistantResponseAnswerText = (response: AIChatItemValueItemType[]) => {
   const result: AIChatItemValueItemType[] = [];
   // 合并连续的text
   for (let i = 0; i < response.length; i++) {
@@ -678,6 +757,14 @@ export const mergeAssistantResponseAnswerText = (response: AIChatItemValueItemTy
       }
     }
     result.push(item);
+  }
+
+  // If result is empty, auto add a text message
+  if (result.length === 0) {
+    result.push({
+      type: ChatItemValueTypeEnum.text,
+      text: { content: '' }
+    });
   }
 
   return result;

@@ -1,5 +1,5 @@
-import { getAIApi } from '../../../../ai/config';
-import { filterGPTMessageByMaxTokens, loadRequestMessages } from '../../../../chat/utils';
+import { createChatCompletion } from '../../../../ai/config';
+import { filterGPTMessageByMaxContext, loadRequestMessages } from '../../../../chat/utils';
 import {
   ChatCompletion,
   StreamChatType,
@@ -51,10 +51,18 @@ export const runToolWithPromptCall = async (
     requestOrigin,
     runtimeNodes,
     runtimeEdges,
-    node,
+    externalProvider,
     stream,
     workflowStreamResponse,
-    params: { temperature = 0, maxToken = 4000, aiChatVision }
+    params: {
+      temperature,
+      maxToken,
+      aiChatVision,
+      aiChatTopP,
+      aiChatStopSign,
+      aiChatResponseFormat,
+      aiChatJsonSchema
+    }
   } = workflowProps;
 
   if (interactiveEntryToolParams) {
@@ -115,7 +123,8 @@ export const runToolWithPromptCall = async (
 
       return {
         dispatchFlowResponse: [toolRunResponse],
-        toolNodeTokens: 0,
+        toolNodeInputTokens: 0,
+        toolNodeOutputTokens: 0,
         completeMessages: concatMessages,
         assistantResponses: toolRunResponse.assistantResponses,
         runTimes: toolRunResponse.runTimes,
@@ -131,7 +140,8 @@ export const runToolWithPromptCall = async (
       },
       {
         dispatchFlowResponse: [toolRunResponse],
-        toolNodeTokens: 0,
+        toolNodeInputTokens: 0,
+        toolNodeOutputTokens: 0,
         assistantResponses: toolRunResponse.assistantResponses,
         runTimes: toolRunResponse.runTimes
       }
@@ -176,54 +186,70 @@ export const runToolWithPromptCall = async (
   );
 
   const lastMessage = messages[messages.length - 1];
-  if (typeof lastMessage.content !== 'string') {
+  if (typeof lastMessage.content === 'string') {
+    lastMessage.content = replaceVariable(lastMessage.content, {
+      toolsPrompt
+    });
+  } else if (Array.isArray(lastMessage.content)) {
+    // array, replace last element
+    const lastText = lastMessage.content[lastMessage.content.length - 1];
+    if (lastText.type === 'text') {
+      lastText.text = replaceVariable(lastText.text, {
+        toolsPrompt
+      });
+    } else {
+      return Promise.reject('Prompt call invalid input');
+    }
+  } else {
     return Promise.reject('Prompt call invalid input');
   }
-  lastMessage.content = replaceVariable(lastMessage.content, {
-    toolsPrompt
+
+  const max_tokens = computedMaxToken({
+    model: toolModel,
+    maxToken
+  });
+  const filterMessages = await filterGPTMessageByMaxContext({
+    messages,
+    maxContext: toolModel.maxContext - (max_tokens || 0) // filter token. not response maxToken
   });
 
-  const filterMessages = await filterGPTMessageByMaxTokens({
-    messages,
-    maxTokens: toolModel.maxContext - 500 // filter token. not response maxToken
-  });
-  const [requestMessages, max_tokens] = await Promise.all([
+  const [requestMessages] = await Promise.all([
     loadRequestMessages({
       messages: filterMessages,
       useVision: toolModel.vision && aiChatVision,
       origin: requestOrigin
-    }),
-    computedMaxToken({
-      model: toolModel,
-      maxToken,
-      filterMessages
     })
   ]);
   const requestBody = llmCompletionsBodyFormat(
     {
       model: toolModel.model,
+      stream,
+      messages: requestMessages,
       temperature,
       max_tokens,
-      stream,
-      messages: requestMessages
+      top_p: aiChatTopP,
+      stop: aiChatStopSign,
+      response_format: aiChatResponseFormat,
+      json_schema: aiChatJsonSchema
     },
     toolModel
   );
 
   // console.log(JSON.stringify(requestMessages, null, 2));
   /* Run llm */
-  const ai = getAIApi({
-    timeout: 480000
-  });
-  const aiResponse = await ai.chat.completions.create(requestBody, {
-    headers: {
-      Accept: 'application/json, text/plain, */*'
+  const {
+    response: aiResponse,
+    isStreamResponse,
+    getEmptyResponseTip
+  } = await createChatCompletion({
+    body: requestBody,
+    userKey: externalProvider.openaiAccount,
+    options: {
+      headers: {
+        Accept: 'application/json, text/plain, */*'
+      }
     }
   });
-  const isStreamResponse =
-    typeof aiResponse === 'object' &&
-    aiResponse !== null &&
-    ('iterator' in aiResponse || 'controller' in aiResponse);
 
   const answer = await (async () => {
     if (res && isStreamResponse) {
@@ -241,8 +267,11 @@ export const runToolWithPromptCall = async (
       return result.choices?.[0]?.message?.content || '';
     }
   })();
-
   const { answer: replaceAnswer, toolJson } = parseAnswer(answer);
+  if (!answer && !toolJson) {
+    return Promise.reject(getEmptyResponseTip());
+  }
+
   // No tools
   if (!toolJson) {
     if (replaceAnswer === ERROR_TEXT) {
@@ -270,15 +299,20 @@ export const runToolWithPromptCall = async (
       content: replaceAnswer
     };
     const completeMessages = filterMessages.concat(gptAssistantResponse);
-    const tokens = await countGptMessagesTokens(completeMessages, undefined);
-    // console.log(tokens, 'response token');
+    const inputTokens = await countGptMessagesTokens(requestMessages);
+    const outputTokens = await countGptMessagesTokens([gptAssistantResponse]);
 
     // concat tool assistant
     const toolNodeAssistant = GPTMessages2Chats([gptAssistantResponse])[0] as AIChatItemType;
 
     return {
       dispatchFlowResponse: response?.dispatchFlowResponse || [],
-      toolNodeTokens: response?.toolNodeTokens ? response.toolNodeTokens + tokens : tokens,
+      toolNodeInputTokens: response?.toolNodeInputTokens
+        ? response.toolNodeInputTokens + inputTokens
+        : inputTokens,
+      toolNodeOutputTokens: response?.toolNodeOutputTokens
+        ? response.toolNodeOutputTokens + outputTokens
+        : outputTokens,
       completeMessages,
       assistantResponses: [...assistantResponses, ...toolNodeAssistant.value],
       runTimes: (response?.runTimes || 0) + 1
@@ -350,17 +384,9 @@ export const runToolWithPromptCall = async (
     function_call: toolJson
   };
 
-  /* 
-    ...
-    user
-    assistant: tool data
-  */
-  const concatToolMessages = [
-    ...requestMessages,
-    assistantToolMsgParams
-  ] as ChatCompletionMessageParam[];
   // Only toolCall tokens are counted here, Tool response tokens count towards the next reply
-  const tokens = await countGptMessagesTokens(concatToolMessages, undefined);
+  const inputTokens = await countGptMessagesTokens(requestMessages);
+  const outputTokens = await countGptMessagesTokens([assistantToolMsgParams]);
 
   /* 
     ...
@@ -398,14 +424,35 @@ export const runToolWithPromptCall = async (
     : undefined;
 
   // get the next user prompt
-  lastMessage.content += `${replaceAnswer}
+  if (typeof lastMessage.content === 'string') {
+    lastMessage.content += `${replaceAnswer}
 TOOL_RESPONSE: """
 ${workflowInteractiveResponseItem ? `{{${INTERACTIVE_STOP_SIGNAL}}}` : toolsRunResponse.toolResponsePrompt}
 """
 ANSWER: `;
+  } else if (Array.isArray(lastMessage.content)) {
+    // array, replace last element
+    const lastText = lastMessage.content[lastMessage.content.length - 1];
+    if (lastText.type === 'text') {
+      lastText.text += `${replaceAnswer}
+TOOL_RESPONSE: """
+${workflowInteractiveResponseItem ? `{{${INTERACTIVE_STOP_SIGNAL}}}` : toolsRunResponse.toolResponsePrompt}
+"""
+ANSWER: `;
+    } else {
+      return Promise.reject('Prompt call invalid input');
+    }
+  } else {
+    return Promise.reject('Prompt call invalid input');
+  }
 
   const runTimes = (response?.runTimes || 0) + toolsRunResponse.toolResponse.runTimes;
-  const toolNodeTokens = response?.toolNodeTokens ? response.toolNodeTokens + tokens : tokens;
+  const toolNodeInputTokens = response?.toolNodeInputTokens
+    ? response.toolNodeInputTokens + inputTokens
+    : inputTokens;
+  const toolNodeOutputTokens = response?.toolNodeOutputTokens
+    ? response.toolNodeOutputTokens + outputTokens
+    : outputTokens;
 
   // Check stop signal
   const hasStopSignal = toolsRunResponse.toolResponse.flowResponses.some((item) => !!item.toolStop);
@@ -428,7 +475,8 @@ ANSWER: `;
 
     return {
       dispatchFlowResponse,
-      toolNodeTokens,
+      toolNodeInputTokens,
+      toolNodeOutputTokens,
       completeMessages: filterMessages,
       assistantResponses: toolNodeAssistants,
       runTimes,
@@ -443,7 +491,8 @@ ANSWER: `;
     },
     {
       dispatchFlowResponse,
-      toolNodeTokens,
+      toolNodeInputTokens,
+      toolNodeOutputTokens,
       assistantResponses: toolNodeAssistants,
       runTimes
     }
@@ -508,9 +557,6 @@ async function streamResponse({
     }
   }
 
-  if (!textAnswer) {
-    return Promise.reject('LLM api response empty');
-  }
   return { answer: textAnswer.trim() };
 }
 

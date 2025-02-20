@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { useDisclosure, Button, ModalBody, ModalFooter } from '@chakra-ui/react';
+import { useDisclosure, Button, ModalBody, ModalFooter, type ImageProps } from '@chakra-ui/react';
 import { useTranslation } from 'next-i18next';
 import MyModal from '../components/common/MyModal';
 import { useMemoizedFn } from 'ahooks';
@@ -11,6 +11,7 @@ export const useConfirm = (props?: {
   showCancel?: boolean;
   type?: 'common' | 'delete';
   hideFooter?: boolean;
+  iconColor?: ImageProps['color'];
 }) => {
   const { t } = useTranslation();
 
@@ -34,6 +35,7 @@ export const useConfirm = (props?: {
   const {
     title = map?.title || t('common:Warning'),
     iconSrc = map?.iconSrc,
+    iconColor,
     content,
     showCancel = true,
     hideFooter = false
@@ -75,18 +77,31 @@ export const useConfirm = (props?: {
       const [requesting, setRequesting] = useState(false);
 
       useEffect(() => {
-        timer.current = setInterval(() => {
-          setCountDownAmount((val) => {
-            if (val <= 0) {
-              clearInterval(timer.current);
-            }
-            return val - 1;
-          });
-        }, 1000);
-      }, []);
+        if (isOpen) {
+          setCountDownAmount(countDown);
+          timer.current = setInterval(() => {
+            setCountDownAmount((val) => {
+              if (val <= 0) {
+                clearInterval(timer.current);
+              }
+              return val - 1;
+            });
+          }, 1000);
+
+          return () => {
+            clearInterval(timer.current);
+          };
+        }
+      }, [isOpen]);
 
       return (
-        <MyModal isOpen={isOpen} iconSrc={iconSrc} title={title} maxW={['90vw', '400px']}>
+        <MyModal
+          isOpen={isOpen}
+          iconSrc={iconSrc}
+          iconColor={iconColor}
+          title={title}
+          maxW={['90vw', '400px']}
+        >
           <ModalBody pt={5} whiteSpace={'pre-wrap'} fontSize={'sm'}>
             {customContent}
           </ModalBody>

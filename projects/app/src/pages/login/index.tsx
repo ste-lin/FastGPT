@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   Box,
   Button,
@@ -15,11 +15,10 @@ import { useSystemStore } from '@/web/common/system/useSystemStore';
 import type { ResLogin } from '@/global/support/api/userRes.d';
 import { useRouter } from 'next/router';
 import { useUserStore } from '@/web/support/user/useUserStore';
-import { useChatStore } from '@/web/core/chat/context/storeChat';
-import LoginForm from './components/LoginForm/LoginForm';
+import { useChatStore } from '@/web/core/chat/context/useChatStore';
 import dynamic from 'next/dynamic';
-import { serviceSideProps } from '@/web/common/utils/i18n';
-import { clearToken, setToken } from '@/web/support/user/auth';
+import { serviceSideProps } from '@fastgpt/web/common/system/nextjs';
+import { clearToken } from '@/web/support/user/auth';
 import Script from 'next/script';
 import Loading from '@fastgpt/web/components/common/MyLoading';
 import { useLocalStorageState, useMount } from 'ahooks';
@@ -28,10 +27,13 @@ import I18nLngSelector from '@/components/Select/I18nLngSelector';
 import { useSystem } from '@fastgpt/web/hooks/useSystem';
 import { GET } from '@/web/common/api/request';
 import { getDocPath } from '@/web/common/system/doc';
+import { getWebReqUrl } from '@fastgpt/web/common/system/utils';
+import LoginForm from '@/pageComponents/login/LoginForm/LoginForm';
+import { useToast } from '@fastgpt/web/hooks/useToast';
 
-const RegisterForm = dynamic(() => import('./components/RegisterForm'));
-const ForgetPasswordForm = dynamic(() => import('./components/ForgetPasswordForm'));
-const WechatForm = dynamic(() => import('./components/LoginForm/WechatForm'));
+const RegisterForm = dynamic(() => import('@/pageComponents/login/RegisterForm'));
+const ForgetPasswordForm = dynamic(() => import('@/pageComponents/login/ForgetPasswordForm'));
+const WechatForm = dynamic(() => import('@/pageComponents/login/LoginForm/WechatForm'));
 const CommunityModal = dynamic(() => import('@/components/CommunityModal'));
 
 const ipDetectURL = 'https://qifu-api.baidubce.com/ip/local/geo/v1/district';
@@ -41,11 +43,12 @@ const Login = ({ ChineseRedirectUrl }: { ChineseRedirectUrl: string }) => {
   const { t } = useTranslation();
   const { lastRoute = '' } = router.query as { lastRoute: string };
   const { feConfigs } = useSystemStore();
-  const [pageType, setPageType] = useState<`${LoginPageTypeEnum}`>();
+  const [pageType, setPageType] = useState<`${LoginPageTypeEnum}`>(LoginPageTypeEnum.passwordLogin);
   const { setUserInfo } = useUserStore();
-  const { setLastChatId, setLastChatAppId } = useChatStore();
+  const { setLastChatAppId } = useChatStore();
   const { isOpen, onOpen, onClose } = useDisclosure();
   const { isPc } = useSystem();
+  const { toast } = useToast();
 
   const {
     isOpen: isOpenCookiesDrawer,
@@ -58,20 +61,18 @@ const Login = ({ ChineseRedirectUrl }: { ChineseRedirectUrl: string }) => {
 
   const loginSuccess = useCallback(
     (res: ResLogin) => {
-      // init store
-      setLastChatId('');
-      setLastChatAppId('');
-
       setUserInfo(res.user);
-      setToken(res.token);
-      setTimeout(() => {
-        router.push(lastRoute ? decodeURIComponent(lastRoute) : '/app/list');
-      }, 300);
+
+      const decodeLastRoute = decodeURIComponent(lastRoute);
+      // 检查是否是当前的 route
+      const navigateTo =
+        decodeLastRoute && !decodeLastRoute.includes('/login') ? decodeLastRoute : '/app/list';
+      router.push(navigateTo);
     },
-    [lastRoute, router, setLastChatId, setLastChatAppId, setUserInfo]
+    [setUserInfo, lastRoute, router]
   );
 
-  function DynamicComponent({ type }: { type: `${LoginPageTypeEnum}` }) {
+  const DynamicComponent = useMemo(() => {
     const TypeMap = {
       [LoginPageTypeEnum.passwordLogin]: LoginForm,
       [LoginPageTypeEnum.register]: RegisterForm,
@@ -79,17 +80,26 @@ const Login = ({ ChineseRedirectUrl }: { ChineseRedirectUrl: string }) => {
       [LoginPageTypeEnum.wechat]: WechatForm
     };
 
-    const Component = TypeMap[type];
+    // @ts-ignore
+    const Component = TypeMap[pageType];
 
     return <Component setPageType={setPageType} loginSuccess={loginSuccess} />;
-  }
+  }, [pageType, loginSuccess]);
 
   /* default login type */
   useEffect(() => {
+    const bd_vid = sessionStorage.getItem('bd_vid');
+    if (bd_vid) {
+      setPageType(LoginPageTypeEnum.passwordLogin);
+      return;
+    }
     setPageType(
       feConfigs?.oauth?.wechat ? LoginPageTypeEnum.wechat : LoginPageTypeEnum.passwordLogin
     );
-  }, [feConfigs.oauth]);
+
+    // init store
+    setLastChatAppId('');
+  }, [feConfigs?.oauth, setLastChatAppId]);
 
   const {
     isOpen: isOpenRedirect,
@@ -136,11 +146,10 @@ const Login = ({ ChineseRedirectUrl }: { ChineseRedirectUrl: string }) => {
       <Flex
         alignItems={'center'}
         justifyContent={'center'}
-        bg={`url('/icon/login-bg.svg') no-repeat`}
+        bg={`url(${getWebReqUrl('/icon/login-bg.svg')}) no-repeat`}
         backgroundSize={'cover'}
         userSelect={'none'}
         h={'100%'}
-        px={[0, '10vw']}
       >
         {isPc && (
           <Box position={'absolute'} top={'24px'} right={'50px'}>
@@ -149,21 +158,20 @@ const Login = ({ ChineseRedirectUrl }: { ChineseRedirectUrl: string }) => {
         )}
         <Flex
           flexDirection={'column'}
-          w={['100%', 'auto']}
-          h={['100%', '700px']}
-          maxH={['100%', '90vh']}
+          w={['100%', '556px']}
+          h={['100%', '677px']}
           bg={'white'}
           px={['5vw', '88px']}
-          py={'5vh'}
-          borderRadius={[0, '24px']}
+          py={['5vh', '64px']}
+          borderRadius={[0, '16px']}
           boxShadow={[
             '',
-            '0px 0px 1px 0px rgba(19, 51, 107, 0.20), 0px 32px 64px -12px rgba(19, 51, 107, 0.20)'
+            '0px 32px 64px -12px rgba(19, 51, 107, 0.20), 0px 0px 1px 0px rgba(19, 51, 107, 0.20)'
           ]}
         >
           <Box w={['100%', '380px']} flex={'1 0 0'}>
             {pageType ? (
-              <DynamicComponent type={pageType} />
+              DynamicComponent
             ) : (
               <Center w={'full'} h={'full'} position={'relative'}>
                 <Loading fixed={false} />
@@ -174,6 +182,8 @@ const Login = ({ ChineseRedirectUrl }: { ChineseRedirectUrl: string }) => {
             <Box
               mt={8}
               color={'primary.700'}
+              fontSize={'mini'}
+              fontWeight={'medium'}
               cursor={'pointer'}
               textAlign={'center'}
               onClick={onOpen}

@@ -1,5 +1,6 @@
 import {
   datasetQuoteValueDesc,
+  datasetSelectValueDesc,
   FlowNodeInputTypeEnum,
   FlowNodeOutputTypeEnum,
   FlowNodeTypeEnum
@@ -29,7 +30,7 @@ export const DatasetSearchModule: FlowNodeTemplateType = {
   intro: Dataset_SEARCH_DESC,
   showStatus: true,
   isTool: true,
-  courseUrl: '/docs/workflow/modules/dataset_search/',
+  courseUrl: '/docs/guide/workbench/workflow/dataset_search/',
   version: '481',
   inputs: [
     {
@@ -38,7 +39,8 @@ export const DatasetSearchModule: FlowNodeTemplateType = {
       label: i18nT('common:core.module.input.label.Select dataset'),
       value: [],
       valueType: WorkflowIOValueTypeEnum.selectDataset,
-      required: true
+      required: true,
+      valueDesc: datasetSelectValueDesc
     },
     {
       key: NodeInputKeyEnum.datasetSimilarity,
@@ -90,15 +92,22 @@ export const DatasetSearchModule: FlowNodeTemplateType = {
       value: ''
     },
     {
+      key: NodeInputKeyEnum.authTmbId,
+      renderTypeList: [FlowNodeInputTypeEnum.hidden],
+      label: '',
+      valueType: WorkflowIOValueTypeEnum.boolean,
+      value: false
+    },
+    {
       ...Input_Template_UserChatInput,
       toolDescription: i18nT('workflow:content_to_search')
     },
     {
       key: NodeInputKeyEnum.collectionFilterMatch,
-      renderTypeList: [FlowNodeInputTypeEnum.JSONEditor, FlowNodeInputTypeEnum.reference],
+      renderTypeList: [FlowNodeInputTypeEnum.textarea, FlowNodeInputTypeEnum.reference],
       label: i18nT('workflow:collection_metadata_filter'),
 
-      valueType: WorkflowIOValueTypeEnum.object,
+      valueType: WorkflowIOValueTypeEnum.string,
       isPro: true,
       description: i18nT('workflow:filter_description')
     }

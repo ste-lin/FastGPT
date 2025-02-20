@@ -43,7 +43,6 @@ export default function Editor({
   onBlur,
   value,
   placeholder = '',
-  isFlow,
   bg = 'white'
 }: {
   minH?: number;
@@ -57,12 +56,12 @@ export default function Editor({
   onBlur?: (editor: LexicalEditor) => void;
   value?: string;
   placeholder?: string;
-  isFlow?: boolean;
   bg?: string;
 }) {
   const [key, setKey] = useState(getNanoid(6));
   const [_, startSts] = useTransition();
   const [focus, setFocus] = useState(false);
+  const [scrollHeight, setScrollHeight] = useState(0);
 
   const initialConfig = {
     namespace: 'promptEditor',
@@ -92,7 +91,7 @@ export default function Editor({
         <PlainTextPlugin
           contentEditable={
             <ContentEditable
-              className={isFlow ? styles.contentEditable_isFlow : styles.contentEditable}
+              className={styles.contentEditable}
               style={{
                 minHeight: `${minH}px`,
                 maxHeight: `${maxH}px`
@@ -107,9 +106,9 @@ export default function Editor({
               right={0}
               bottom={0}
               py={3}
-              px={4}
+              px={3.5}
               pointerEvents={'none'}
-              overflow={'overlay'}
+              overflow={'hidden'}
             >
               <Box
                 color={'myGray.400'}
@@ -130,6 +129,8 @@ export default function Editor({
         <FocusPlugin focus={focus} setFocus={setFocus} />
         <OnChangePlugin
           onChange={(editorState, editor) => {
+            const rootElement = editor.getRootElement();
+            setScrollHeight(rootElement?.scrollHeight || 0);
             startSts(() => {
               onChange?.(editorState, editor);
             });
@@ -141,16 +142,16 @@ export default function Editor({
         <VariablePickerPlugin variables={variableLabels.length > 0 ? [] : variables} />
         <OnBlurPlugin onBlur={onBlur} />
       </LexicalComposer>
-      {showOpenModal && (
+      {showOpenModal && scrollHeight > maxH && (
         <Box
           zIndex={10}
           position={'absolute'}
-          bottom={0}
+          bottom={-1}
           right={2}
           cursor={'pointer'}
           onClick={onOpenModal}
         >
-          <MyIcon name={'common/fullScreenLight'} w={'14px'} color={'myGray.600'} />
+          <MyIcon name={'common/fullScreenLight'} w={'14px'} color={'myGray.500'} />
         </Box>
       )}
     </Box>

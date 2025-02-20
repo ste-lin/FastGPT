@@ -23,7 +23,6 @@ type RunPluginProps = ModuleDispatchProps<{
   [key: string]: any;
 }>;
 type RunPluginResponse = DispatchNodeResultType<{}>;
-
 export const dispatchRunPlugin = async (props: RunPluginProps): Promise<RunPluginResponse> => {
   const {
     node: { pluginId, version },
@@ -31,7 +30,6 @@ export const dispatchRunPlugin = async (props: RunPluginProps): Promise<RunPlugi
     query,
     params: { system_forbid_stream = false, ...data } // Plugin input
   } = props;
-
   if (!pluginId) {
     return Promise.reject('pluginId can not find');
   }
@@ -54,7 +52,6 @@ export const dispatchRunPlugin = async (props: RunPluginProps): Promise<RunPlugi
         acc[cur.key] = cur.isToolOutput === false ? false : true;
         return acc;
       }, {}) ?? {};
-
   const runtimeNodes = storeNodes2RuntimeNodes(
     plugin.nodes,
     getWorkflowEntryNodeIds(plugin.nodes)
@@ -75,11 +72,11 @@ export const dispatchRunPlugin = async (props: RunPluginProps): Promise<RunPlugi
       showStatus: false
     };
   });
+
   const runtimeVariables = {
     ...filterSystemVariables(props.variables),
     appId: String(plugin.id)
   };
-
   const { flowResponses, flowUsages, assistantResponses, runTimes } = await dispatchWorkFlow({
     ...props,
     // Rewrite stream mode
@@ -105,19 +102,19 @@ export const dispatchRunPlugin = async (props: RunPluginProps): Promise<RunPlugi
     runtimeNodes,
     runtimeEdges: initWorkflowEdgeStatus(plugin.edges)
   });
-
   const output = flowResponses.find((item) => item.moduleType === FlowNodeTypeEnum.pluginOutput);
-
   if (output) {
     output.moduleLogo = plugin.avatar;
   }
 
-  const usagePoints = await computedPluginUsage(plugin, flowUsages);
-  const childStreamResponse = system_forbid_stream ? false : props.stream;
-
+  const usagePoints = await computedPluginUsage({
+    plugin,
+    childrenUsage: flowUsages,
+    error: !!output?.pluginOutput?.error
+  });
   return {
     // 嵌套运行时，如果 childApp stream=false，实际上不会有任何内容输出给用户，所以不需要存储
-    assistantResponses: childStreamResponse ? assistantResponses : [],
+    assistantResponses: system_forbid_stream ? [] : assistantResponses,
     // responseData, // debug
     [DispatchNodeResponseKeyEnum.runTimes]: runTimes,
     [DispatchNodeResponseKeyEnum.nodeResponse]: {
@@ -134,8 +131,7 @@ export const dispatchRunPlugin = async (props: RunPluginProps): Promise<RunPlugi
     [DispatchNodeResponseKeyEnum.nodeDispatchUsages]: [
       {
         moduleName: plugin.name,
-        totalPoints: usagePoints,
-        tokens: 0
+        totalPoints: usagePoints
       }
     ],
     [DispatchNodeResponseKeyEnum.toolResponses]: output?.pluginOutput

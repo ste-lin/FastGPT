@@ -1,18 +1,7 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useEffect } from 'react';
 import { Controller, UseFormReturn } from 'react-hook-form';
 import { useTranslation } from 'next-i18next';
-import {
-  Box,
-  Button,
-  Card,
-  Input,
-  NumberDecrementStepper,
-  NumberIncrementStepper,
-  NumberInput,
-  NumberInputField,
-  NumberInputStepper,
-  Textarea
-} from '@chakra-ui/react';
+import { Box, Button, Card, Textarea } from '@chakra-ui/react';
 import ChatAvatar from './ChatAvatar';
 import { MessageCardStyle } from '../constants';
 import { VariableInputEnum } from '@fastgpt/global/core/workflow/constants';
@@ -22,8 +11,10 @@ import { ChatBoxInputFormType } from '../type.d';
 import { useContextSelector } from 'use-context-selector';
 import { ChatBoxContext } from '../Provider';
 import QuestionTip from '@fastgpt/web/components/common/MyTooltip/QuestionTip';
-import { useDeepCompareEffect } from 'ahooks';
 import { VariableItemType } from '@fastgpt/global/core/app/type';
+import MyTextarea from '@/components/common/Textarea/MyTextarea';
+import MyNumberInput from '@fastgpt/web/components/common/Input/NumberInput';
+import { ChatItemContext } from '@/web/core/chat/context/chatItemContext';
 
 export const VariableInputItem = ({
   item,
@@ -46,30 +37,26 @@ export const VariableInputItem = ({
       >
         {item.label}
         {item.required && (
-          <Box
-            position={'absolute'}
-            top={'-2px'}
-            left={'-8px'}
-            color={'red.500'}
-            fontWeight={'bold'}
-          >
+          <Box position={'absolute'} top={'-2px'} left={'-8px'} color={'red.500'}>
             *
           </Box>
         )}
         {item.description && <QuestionTip ml={1} label={item.description} />}
       </Box>
       {item.type === VariableInputEnum.input && (
-        <Input
-          maxLength={item.maxLength || 4000}
+        <MyTextarea
+          autoHeight
+          minH={40}
+          maxH={160}
           bg={'myGray.50'}
-          {...register(item.key, {
+          {...register(`variables.${item.key}`, {
             required: item.required
           })}
         />
       )}
       {item.type === VariableInputEnum.textarea && (
         <Textarea
-          {...register(item.key, {
+          {...register(`variables.${item.key}`, {
             required: item.required
           })}
           rows={5}
@@ -79,9 +66,9 @@ export const VariableInputItem = ({
       )}
       {item.type === VariableInputEnum.select && (
         <Controller
-          key={item.key}
+          key={`variables.${item.key}`}
           control={control}
-          name={item.key}
+          name={`variables.${item.key}`}
           rules={{ required: item.required }}
           render={({ field: { ref, value } }) => {
             return (
@@ -93,7 +80,7 @@ export const VariableInputItem = ({
                   value: item.value
                 }))}
                 value={value}
-                onchange={(e) => setValue(item.key, e)}
+                onchange={(e) => setValue(`variables.${item.key}`, e)}
               />
             );
           }}
@@ -101,27 +88,19 @@ export const VariableInputItem = ({
       )}
       {item.type === VariableInputEnum.numberInput && (
         <Controller
-          key={item.key}
+          key={`variables.${item.key}`}
           control={control}
-          name={item.key}
+          name={`variables.${item.key}`}
           rules={{ required: item.required, min: item.min, max: item.max }}
-          render={({ field: { ref, value, onChange } }) => (
-            <NumberInput
+          render={({ field: { value, onChange } }) => (
+            <MyNumberInput
               step={1}
               min={item.min}
               max={item.max}
               bg={'white'}
-              rounded={'md'}
-              clampValueOnBlur={false}
               value={value}
-              onChange={(valueString) => onChange(Number(valueString))}
-            >
-              <NumberInputField ref={ref} bg={'white'} />
-              <NumberInputStepper>
-                <NumberIncrementStepper />
-                <NumberDecrementStepper />
-              </NumberInputStepper>
-            </NumberInput>
+              onChange={onChange}
+            />
           )}
         />
       )}
@@ -138,19 +117,20 @@ const VariableInput = ({
 }) => {
   const { t } = useTranslation();
 
-  const { appAvatar, variableList, variablesForm } = useContextSelector(ChatBoxContext, (v) => v);
-  const { reset, handleSubmit: handleSubmitChat } = variablesForm;
+  const appAvatar = useContextSelector(ChatItemContext, (v) => v.chatBoxData?.app?.avatar);
+  const variablesForm = useContextSelector(ChatItemContext, (v) => v.variablesForm);
+  const variableList = useContextSelector(ChatBoxContext, (v) => v.variableList);
 
-  const defaultValues = useMemo(() => {
-    return variableList.reduce((acc: Record<string, any>, item) => {
-      acc[item.key] = item.defaultValue;
-      return acc;
-    }, {});
+  const { getValues, setValue, handleSubmit: handleSubmitChat } = variablesForm;
+
+  useEffect(() => {
+    variableList.forEach((item) => {
+      const val = getValues(`variables.${item.key}`);
+      if (item.defaultValue !== undefined && (val === undefined || val === null || val === '')) {
+        setValue(`variables.${item.key}`, item.defaultValue);
+      }
+    });
   }, [variableList]);
-
-  useDeepCompareEffect(() => {
-    reset(defaultValues);
-  }, [defaultValues]);
 
   return (
     <Box py={3}>

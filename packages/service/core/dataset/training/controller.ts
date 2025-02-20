@@ -7,7 +7,7 @@ import type {
 import { TrainingModeEnum } from '@fastgpt/global/core/dataset/constants';
 import { simpleText } from '@fastgpt/global/common/string/tools';
 import { ClientSession } from '../../../common/mongo';
-import { getLLMModel, getVectorModel } from '../../ai/model';
+import { getLLMModel, getEmbeddingModel } from '../../ai/model';
 import { addLog } from '../../../common/system/log';
 import { getCollectionWithDataset } from '../controller';
 import { mongoSessionRun } from '../../../common/mongo/sessionRun';
@@ -34,7 +34,7 @@ export const pushDataListToTrainingQueueByCollectionId = async ({
   session?: ClientSession;
 } & PushDatasetDataProps) => {
   const {
-    datasetId: { _id: datasetId, agentModel, vectorModel }
+    dataset: { _id: datasetId, agentModel, vectorModel }
   } = await getCollectionWithDataset(collectionId);
   return pushDataListToTrainingQueue({
     ...props,
@@ -70,14 +70,14 @@ export async function pushDataListToTrainingQueue({
     if (!agentModelData) {
       return Promise.reject(`File model ${agentModel} is inValid`);
     }
-    const vectorModelData = getVectorModel(vectorModel);
+    const vectorModelData = getEmbeddingModel(vectorModel);
     if (!vectorModelData) {
       return Promise.reject(`Vector model ${vectorModel} is inValid`);
     }
 
     if (trainingMode === TrainingModeEnum.chunk) {
       return {
-        maxToken: vectorModelData.maxToken * 1.3,
+        maxToken: vectorModelData.maxToken * 1.5,
         model: vectorModelData.model,
         weight: vectorModelData.weight
       };
@@ -125,10 +125,7 @@ export async function pushDataListToTrainingQueue({
 
     const text = item.q + item.a;
 
-    // count q token
-    const token = item.q.length;
-
-    if (token > maxToken) {
+    if (text.length > maxToken) {
       filterResult.overToken.push(item);
       return;
     }
@@ -168,7 +165,8 @@ export async function pushDataListToTrainingQueue({
           a: item.a,
           chunkIndex: item.chunkIndex ?? 0,
           weight: weight ?? 0,
-          indexes: item.indexes
+          indexes: item.indexes,
+          retryCount: 5
         })),
         {
           session,

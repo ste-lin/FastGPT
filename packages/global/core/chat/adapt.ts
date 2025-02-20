@@ -14,7 +14,6 @@ import type {
   ChatCompletionToolMessageParam
 } from '../../core/ai/type.d';
 import { ChatCompletionRequestMessageRoleEnum } from '../../core/ai/constants';
-
 const GPT2Chat = {
   [ChatCompletionRequestMessageRoleEnum.System]: ChatRoleEnum.System,
   [ChatCompletionRequestMessageRoleEnum.User]: ChatRoleEnum.Human,
@@ -47,7 +46,16 @@ export const chats2GPTMessages = ({
 
   messages.forEach((item) => {
     const dataId = reserveId ? item.dataId : undefined;
-    if (item.obj === ChatRoleEnum.Human) {
+    if (item.obj === ChatRoleEnum.System) {
+      const content = item.value?.[0]?.text?.content;
+      if (content) {
+        results.push({
+          dataId,
+          role: ChatCompletionRequestMessageRoleEnum.System,
+          content
+        });
+      }
+    } else if (item.obj === ChatRoleEnum.Human) {
       const value = item.value
         .map((item) => {
           if (item.type === ChatItemValueTypeEnum.text) {
@@ -61,14 +69,14 @@ export const chats2GPTMessages = ({
               return {
                 type: 'image_url',
                 image_url: {
-                  url: item.file?.url || ''
+                  url: item.file.url
                 }
               };
             } else if (item.file?.type === ChatFileTypeEnum.file) {
               return {
                 type: 'file_url',
                 name: item.file?.name || '',
-                url: item.file?.url || ''
+                url: item.file.url
               };
             }
           }
@@ -77,20 +85,13 @@ export const chats2GPTMessages = ({
 
       results.push({
         dataId,
+        hideInUI: item.hideInUI,
         role: ChatCompletionRequestMessageRoleEnum.User,
         content: simpleUserContentPart(value)
       });
-    } else if (item.obj === ChatRoleEnum.System) {
-      const content = item.value?.[0]?.text?.content;
-      if (content) {
-        results.push({
-          dataId,
-          role: ChatCompletionRequestMessageRoleEnum.System,
-          content
-        });
-      }
     } else {
       const aiResults: ChatCompletionMessageParam[] = [];
+
       //AI
       item.value.forEach((value, i) => {
         if (value.type === ChatItemValueTypeEnum.tool && value.tools && reserveTool) {
@@ -131,7 +132,7 @@ export const chats2GPTMessages = ({
           if (
             lastValue &&
             lastValue.type === ChatItemValueTypeEnum.text &&
-            typeof lastResult.content === 'string'
+            typeof lastResult?.content === 'string'
           ) {
             lastResult.content += value.text.content;
           } else {
@@ -318,6 +319,7 @@ export const GPTMessages2Chats = (
       return {
         dataId: item.dataId,
         obj,
+        hideInUI: item.hideInUI,
         value
       } as ChatItemType;
     })
@@ -347,7 +349,7 @@ export const chatValue2RuntimePrompt = (value: ChatItemValueItemType[]): Runtime
   };
   value.forEach((item) => {
     if (item.type === 'file' && item.file) {
-      prompt.files?.push(item.file);
+      prompt.files.push(item.file);
     } else if (item.text) {
       prompt.text += item.text.content;
     }

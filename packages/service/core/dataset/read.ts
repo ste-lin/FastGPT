@@ -7,6 +7,9 @@ import { TextSplitProps, splitText2Chunks } from '@fastgpt/global/common/string/
 import axios from 'axios';
 import { readRawContentByFileBuffer } from '../../common/file/read/utils';
 import { parseFileExtensionFromUrl } from '@fastgpt/global/common/string/tools';
+import { APIFileServer, FeishuServer, YuqueServer } from '@fastgpt/global/core/dataset/apiDataset';
+import { useApiDatasetRequest } from './apiDataset/api';
+import { POST } from '../../common/api/plusRequest';
 
 export const readFileRawTextByUrl = async ({
   teamId,
@@ -15,7 +18,7 @@ export const readFileRawTextByUrl = async ({
 }: {
   teamId: string;
   url: string;
-  relatedId?: string;
+  relatedId: string; // externalFileId / apiFileId
 }) => {
   const response = await axios({
     method: 'get',
@@ -40,9 +43,9 @@ export const readFileRawTextByUrl = async ({
 };
 
 /* 
-    fileId - local file, read from mongo
-    link - request
-    externalFile = request read
+  fileId - local file, read from mongo
+  link - request
+  externalFile/apiFile = request read
 */
 export const readDatasetSourceRawText = async ({
   teamId,
@@ -50,14 +53,21 @@ export const readDatasetSourceRawText = async ({
   sourceId,
   isQAImport,
   selector,
-  relatedId
+  externalFileId,
+  apiServer,
+  feishuServer,
+  yuqueServer
 }: {
   teamId: string;
   type: DatasetSourceReadTypeEnum;
   sourceId: string;
-  isQAImport?: boolean;
-  selector?: string;
-  relatedId?: string;
+
+  isQAImport?: boolean; // csv data
+  selector?: string; // link selector
+  externalFileId?: string; // external file dataset
+  apiServer?: APIFileServer; // api dataset
+  feishuServer?: FeishuServer; // feishu dataset
+  yuqueServer?: YuqueServer; // yuque dataset
 }): Promise<string> => {
   if (type === DatasetSourceReadTypeEnum.fileLocal) {
     const { rawText } = await readFileContentFromMongo({
@@ -75,15 +85,53 @@ export const readDatasetSourceRawText = async ({
 
     return result[0]?.content || '';
   } else if (type === DatasetSourceReadTypeEnum.externalFile) {
+    if (!externalFileId) return Promise.reject('FileId not found');
     const rawText = await readFileRawTextByUrl({
       teamId,
       url: sourceId,
-      relatedId
+      relatedId: externalFileId
+    });
+    return rawText;
+  } else if (type === DatasetSourceReadTypeEnum.apiFile) {
+    const rawText = await readApiServerFileContent({
+      apiServer,
+      feishuServer,
+      yuqueServer,
+      apiFileId: sourceId,
+      teamId
     });
     return rawText;
   }
-
   return '';
+};
+
+export const readApiServerFileContent = async ({
+  apiServer,
+  feishuServer,
+  yuqueServer,
+  apiFileId,
+  teamId
+}: {
+  apiServer?: APIFileServer;
+  feishuServer?: FeishuServer;
+  yuqueServer?: YuqueServer;
+  apiFileId: string;
+  teamId: string;
+}) => {
+  if (apiServer) {
+    return useApiDatasetRequest({ apiServer }).getFileContent({ teamId, apiFileId });
+  }
+
+  if (feishuServer || yuqueServer) {
+    return POST<string>(`/core/dataset/systemApiDataset`, {
+      type: 'content',
+      feishuServer,
+      yuqueServer,
+      apiFileId
+    });
+  }
+
+  return Promise.reject('No apiServer or feishuServer or yuqueServer');
 };
 
 export const rawText2Chunks = ({

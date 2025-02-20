@@ -17,12 +17,14 @@ import { DispatchNodeResultType } from '@fastgpt/global/core/workflow/runtime/ty
 import { authAppByTmbId } from '../../../../support/permission/app/auth';
 import { ReadPermissionVal } from '@fastgpt/global/support/permission/constant';
 import { getAppVersionById } from '../../../app/version/controller';
+import { parseUrlToFileType } from '@fastgpt/global/common/file/tools';
 
 type Props = ModuleDispatchProps<{
   [NodeInputKeyEnum.userChatInput]: string;
   [NodeInputKeyEnum.history]?: ChatItemType[] | number;
   [NodeInputKeyEnum.fileUrlList]?: string[];
   [NodeInputKeyEnum.forbidStream]?: boolean;
+  [NodeInputKeyEnum.fileUrlList]?: string[];
 }>;
 type Response = DispatchNodeResultType<{
   [NodeOutputKeyEnum.answerText]: string;
@@ -40,8 +42,24 @@ export const dispatchRunAppNode = async (props: Props): Promise<Response> => {
     variables
   } = props;
 
-  const { system_forbid_stream = false, userChatInput, history, ...childrenAppVariables } = params;
-  if (!userChatInput) {
+  const {
+    system_forbid_stream = false,
+    userChatInput,
+    history,
+    fileUrlList,
+    ...childrenAppVariables
+  } = params;
+  const { files } = chatValue2RuntimePrompt(query);
+
+  const userInputFiles = (() => {
+    if (fileUrlList) {
+      return fileUrlList.map((url) => parseUrlToFileType(url)).filter(Boolean);
+    }
+    // Adapt version 4.8.13 upgrade
+    return files;
+  })();
+
+  if (!userChatInput && !userInputFiles) {
     return Promise.reject('Input is empty');
   }
   if (!appId) {
@@ -72,7 +90,6 @@ export const dispatchRunAppNode = async (props: Props): Promise<Response> => {
   }
 
   const chatHistories = getHistories(history, histories);
-  const { files } = chatValue2RuntimePrompt(query);
 
   // Rewrite children app variables
   const systemVariables = filterSystemVariables(variables);
@@ -102,7 +119,7 @@ export const dispatchRunAppNode = async (props: Props): Promise<Response> => {
     histories: chatHistories,
     variables: childrenRunVariables,
     query: runtimePrompt2ChatsValue({
-      files,
+      files: userInputFiles,
       text: userChatInput
     }),
     chatConfig
@@ -124,7 +141,7 @@ export const dispatchRunAppNode = async (props: Props): Promise<Response> => {
   const usagePoints = flowUsages.reduce((sum, item) => sum + (item.totalPoints || 0), 0);
 
   return {
-    assistantResponses: childStreamResponse ? assistantResponses : [],
+    assistantResponses: system_forbid_stream ? [] : assistantResponses,
     [DispatchNodeResponseKeyEnum.runTimes]: runTimes,
     [DispatchNodeResponseKeyEnum.nodeResponse]: {
       moduleLogo: appData.avatar,
@@ -136,8 +153,7 @@ export const dispatchRunAppNode = async (props: Props): Promise<Response> => {
     [DispatchNodeResponseKeyEnum.nodeDispatchUsages]: [
       {
         moduleName: appData.name,
-        totalPoints: usagePoints,
-        tokens: 0
+        totalPoints: usagePoints
       }
     ],
     [DispatchNodeResponseKeyEnum.toolResponses]: text,

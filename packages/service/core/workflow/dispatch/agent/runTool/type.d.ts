@@ -16,11 +16,16 @@ export type DispatchToolModuleProps = ModuleDispatchProps<{
   [NodeInputKeyEnum.history]?: ChatItemType[];
   [NodeInputKeyEnum.userChatInput]: string;
 
+  [NodeInputKeyEnum.fileUrlList]?: string[];
   [NodeInputKeyEnum.aiModel]: string;
   [NodeInputKeyEnum.aiSystemPrompt]: string;
   [NodeInputKeyEnum.aiChatTemperature]: number;
   [NodeInputKeyEnum.aiChatMaxToken]: number;
   [NodeInputKeyEnum.aiChatVision]?: boolean;
+  [NodeInputKeyEnum.aiChatTopP]?: number;
+  [NodeInputKeyEnum.aiChatStopSign]?: string;
+  [NodeInputKeyEnum.aiChatResponseFormat]?: string;
+  [NodeInputKeyEnum.aiChatJsonSchema]?: string;
 }> & {
   messages: ChatCompletionMessageParam[];
   toolNodes: ToolNodeItemType[];
@@ -30,7 +35,9 @@ export type DispatchToolModuleProps = ModuleDispatchProps<{
 
 export type RunToolResponse = {
   dispatchFlowResponse: DispatchFlowResponse[];
-  toolNodeTokens: number;
+  toolNodeTokens?: number; // deprecated
+  toolNodeInputTokens: number;
+  toolNodeOutputTokens: number;
   completeMessages?: ChatCompletionMessageParam[];
   assistantResponses?: AIChatItemValueItemType[];
   toolWorkflowInteractiveResponse?: WorkflowInteractiveResponseType;

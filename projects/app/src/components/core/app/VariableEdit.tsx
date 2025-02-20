@@ -1,16 +1,16 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
   Box,
   Button,
   Flex,
   Table,
   Thead,
-  Tbody,
   Tr,
   Th,
   Td,
   TableContainer,
-  Stack
+  Stack,
+  Tbody
 } from '@chakra-ui/react';
 import { SmallAddIcon } from '@chakra-ui/icons';
 import {
@@ -20,9 +20,8 @@ import {
 } from '@fastgpt/global/core/workflow/constants';
 import type { VariableItemType } from '@fastgpt/global/core/app/type.d';
 import MyIcon from '@fastgpt/web/components/common/Icon';
-import { useForm } from 'react-hook-form';
+import { useForm, UseFormReset } from 'react-hook-form';
 import { customAlphabet } from 'nanoid';
-const nanoid = customAlphabet('abcdefghijklmnopqrstuvwxyz1234567890', 6);
 import MyModal from '@fastgpt/web/components/common/MyModal';
 import { useTranslation } from 'next-i18next';
 import { useToast } from '@fastgpt/web/hooks/useToast';
@@ -30,7 +29,15 @@ import { formatEditorVariablePickerIcon } from '@fastgpt/global/core/workflow/ut
 import ChatFunctionTip from './Tip';
 import FormLabel from '@fastgpt/web/components/common/MyBox/FormLabel';
 import QuestionTip from '@fastgpt/web/components/common/MyTooltip/QuestionTip';
-import InputTypeConfig from '@/pages/app/detail/components/WorkflowComponents/Flow/nodes/NodePluginIO/InputTypeConfig';
+import InputTypeConfig from '@/pageComponents/app/detail/WorkflowComponents/Flow/nodes/NodePluginIO/InputTypeConfig';
+import MyIconButton from '@fastgpt/web/components/common/Icon/button';
+import DndDrag, {
+  Draggable,
+  DraggableProvided,
+  DraggableStateSnapshot
+} from '@fastgpt/web/components/common/DndDrag';
+
+const nanoid = customAlphabet('abcdefghijklmnopqrstuvwxyz1234567890', 6);
 
 export const defaultVariable: VariableItemType = {
   id: nanoid(),
@@ -53,10 +60,12 @@ export const addVariable = () => {
 
 const VariableEdit = ({
   variables = [],
-  onChange
+  onChange,
+  zoom = 1
 }: {
   variables?: VariableItemType[];
   onChange: (data: VariableItemType[]) => void;
+  zoom?: number;
 }) => {
   const { t } = useTranslation();
   const { toast } = useToast();
@@ -65,20 +74,18 @@ const VariableEdit = ({
   const { setValue, reset, watch, getValues } = form;
   const value = getValues();
   const type = watch('type');
-  const valueType = watch('valueType');
-  const max = watch('max');
-  const min = watch('min');
-  const defaultValue = watch('defaultValue');
 
   const inputTypeList = useMemo(
     () =>
-      Object.values(variableMap).map((item) => ({
-        icon: item.icon,
-        label: t(item.label as any),
-        value: item.value,
-        defaultValueType: item.defaultValueType,
-        description: item.description ? t(item.description as any) : ''
-      })),
+      Object.values(variableMap)
+        .filter((item) => item.value !== VariableInputEnum.textarea)
+        .map((item) => ({
+          icon: item.icon,
+          label: t(item.label as any),
+          value: item.value,
+          defaultValueType: item.defaultValueType,
+          description: item.description ? t(item.description as any) : ''
+        })),
     [t]
   );
 
@@ -118,10 +125,8 @@ const VariableEdit = ({
 
       if (data.type === VariableInputEnum.custom) {
         data.required = false;
-      }
-
-      if (data.type === VariableInputEnum.numberInput) {
-        data.valueType = WorkflowIOValueTypeEnum.number;
+      } else {
+        data.valueType = inputTypeList.find((item) => item.value === data.type)?.defaultValueType;
       }
 
       const onChangeVariable = [...variables];
@@ -150,7 +155,7 @@ const VariableEdit = ({
         });
       }
     },
-    [variables, toast, t, onChange, reset]
+    [variables, toast, t, inputTypeList, onChange, reset]
   );
 
   const onSubmitError = useCallback(
@@ -169,11 +174,13 @@ const VariableEdit = ({
   );
 
   return (
-    <Box>
+    <Box className="nodrag">
       {/* Row box */}
       <Flex alignItems={'center'}>
         <MyIcon name={'core/app/simpleMode/variable'} w={'20px'} />
-        <FormLabel ml={2}>{t('common:core.module.Variable')}</FormLabel>
+        <FormLabel ml={2} color={'myGray.600'}>
+          {t('common:core.module.Variable')}
+        </FormLabel>
         <ChatFunctionTip type={'variable'} />
         <Box flex={1} />
         <Button
@@ -181,6 +188,7 @@ const VariableEdit = ({
           leftIcon={<SmallAddIcon />}
           iconSpacing={1}
           size={'sm'}
+          color={'myGray.600'}
           mr={'-5px'}
           onClick={() => {
             reset(addVariable());
@@ -191,61 +199,54 @@ const VariableEdit = ({
       </Flex>
       {/* Form render */}
       {formatVariables.length > 0 && (
-        <Box mt={2} borderRadius={'md'} overflow={'hidden'} borderWidth={'1px'} borderBottom="none">
-          <TableContainer>
-            <Table>
-              <Thead>
-                <Tr>
-                  <Th
-                    fontSize={'mini'}
-                    borderRadius={'none !important'}
-                    w={'18px !important'}
-                    p={0}
-                  />
-                  <Th fontSize={'mini'}>{t('workflow:Variable_name')}</Th>
-                  <Th fontSize={'mini'}>{t('common:core.module.variable.key')}</Th>
-                  <Th fontSize={'mini'}>{t('common:common.Require Input')}</Th>
-                  <Th fontSize={'mini'} borderRadius={'none !important'}></Th>
-                </Tr>
-              </Thead>
-              <Tbody>
-                {formatVariables.map((item) => (
-                  <Tr key={item.id}>
-                    <Td p={0} pl={3}>
-                      <MyIcon name={item.icon as any} w={'16px'} color={'myGray.500'} />
-                    </Td>
-                    <Td>{item.label}</Td>
-                    <Td>{item.key}</Td>
-                    <Td>{item.required ? '✔' : ''}</Td>
-                    <Td>
-                      <MyIcon
-                        mr={3}
-                        name={'common/settingLight'}
-                        w={'16px'}
-                        cursor={'pointer'}
-                        onClick={() => {
-                          const formattedItem = {
-                            ...item,
-                            list: item.enums || []
-                          };
-                          reset(formattedItem);
-                        }}
-                      />
-                      <MyIcon
-                        name={'delete'}
-                        w={'16px'}
-                        cursor={'pointer'}
-                        onClick={() =>
-                          onChange(variables.filter((variable) => variable.id !== item.id))
-                        }
-                      />
-                    </Td>
-                  </Tr>
-                ))}
-              </Tbody>
-            </Table>
-          </TableContainer>
-        </Box>
+        <TableContainer mt={2} borderRadius={'md'} overflow={'hidden'} borderWidth={'1px'}>
+          <Table variant={'workflow'}>
+            <Thead>
+              <Tr>
+                <Th>{t('workflow:Variable_name')}</Th>
+                <Th>{t('common:Required_input')}</Th>
+                <Th>{t('common:Operation')}</Th>
+              </Tr>
+            </Thead>
+            <DndDrag<VariableItemType>
+              onDragEndCb={(list) => {
+                onChange(list);
+              }}
+              dataList={formatVariables}
+              renderClone={(provided, snapshot, rubric) => (
+                <TableItem
+                  provided={provided}
+                  snapshot={snapshot}
+                  item={formatVariables[rubric.source.index]}
+                  reset={reset}
+                  onChange={onChange}
+                  variables={variables}
+                />
+              )}
+              zoom={zoom}
+            >
+              {({ provided }) => (
+                <Tbody {...provided.droppableProps} ref={provided.innerRef}>
+                  {formatVariables.map((item, index) => (
+                    <Draggable key={item.id} draggableId={item.id} index={index}>
+                      {(provided, snapshot) => (
+                        <TableItem
+                          provided={provided}
+                          snapshot={snapshot}
+                          item={item}
+                          reset={reset}
+                          onChange={onChange}
+                          variables={variables}
+                          key={item.id}
+                        />
+                      )}
+                    </Draggable>
+                  ))}
+                </Tbody>
+              )}
+            </DndDrag>
+          </Table>
+        </TableContainer>
       )}
 
       {/* Edit modal */}
@@ -329,11 +330,7 @@ const VariableEdit = ({
               type={'variable'}
               isEdit={!!value.key}
               inputType={type}
-              valueType={valueType}
-              defaultValue={defaultValue}
               defaultValueType={defaultValueType}
-              max={max}
-              min={min}
               onClose={() => reset({})}
               onSubmitSuccess={onSubmitSuccess}
               onSubmitError={onSubmitError}
@@ -342,6 +339,67 @@ const VariableEdit = ({
         </MyModal>
       )}
     </Box>
+  );
+};
+
+const TableItem = ({
+  provided,
+  snapshot,
+  item,
+  reset,
+  onChange,
+  variables
+}: {
+  provided: DraggableProvided;
+  snapshot: DraggableStateSnapshot;
+  item: VariableItemType & {
+    icon?: string;
+  };
+  reset: UseFormReset<VariableItemType>;
+  onChange: (data: VariableItemType[]) => void;
+  variables: VariableItemType[];
+}) => {
+  return (
+    <Tr
+      ref={provided.innerRef}
+      {...provided.draggableProps}
+      {...provided.dragHandleProps}
+      style={{
+        ...provided.draggableProps.style,
+        opacity: snapshot.isDragging ? 0.8 : 1
+      }}
+    >
+      <Td fontWeight={'medium'}>
+        <Flex alignItems={'center'}>
+          <MyIcon name={item.icon as any} w={'16px'} color={'myGray.400'} mr={1} />
+          {item.key}
+        </Flex>
+      </Td>
+      <Td>
+        <Flex alignItems={'center'}>
+          {item.required ? <MyIcon name={'check'} w={'16px'} color={'myGray.900'} mr={2} /> : ''}
+        </Flex>
+      </Td>
+      <Td>
+        <Flex>
+          <MyIconButton
+            icon={'common/settingLight'}
+            onClick={() => {
+              const formattedItem = {
+                ...item,
+                list: item.enums || []
+              };
+              reset(formattedItem);
+            }}
+          />
+          <MyIconButton
+            icon={'delete'}
+            hoverColor={'red.500'}
+            onClick={() => onChange(variables.filter((variable) => variable.id !== item.id))}
+          />
+        </Flex>
+      </Td>
+    </Tr>
   );
 };
 

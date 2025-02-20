@@ -4,26 +4,24 @@ import { PermissionValueType } from './type';
 
 export type CollaboratorItemType = {
   teamId: string;
-  tmbId: string;
   permission: Permission;
   name: string;
   avatar: string;
-};
+} & RequireOnlyOne<{
+  tmbId: string;
+  groupId: string;
+  orgId: string;
+}>;
 
 export type UpdateClbPermissionProps = {
   members?: string[];
   groups?: string[];
+  orgs?: string[];
   permission: PermissionValueType;
 };
 
-export type DeleteClbPermissionProps = RequireOnlyOne<{
-  tmbId: string;
-  groupId: string;
-}>;
-
-export type UpdatePermissionBody = {
-  permission: PermissionValueType;
-} & RequireOnlyOne<{
-  memberId: string;
-  groupId: string;
+export type DeletePermissionQuery = RequireOnlyOne<{
+  tmbId?: string;
+  groupId?: string;
+  orgId?: string;
 }>;

@@ -20,6 +20,7 @@ import { chatNodeSystemPromptTip, systemPromptTip } from '../tip';
 import { LLMModelTypeEnum } from '../../../ai/constants';
 import { getHandleConfig } from '../utils';
 import { i18nT } from '../../../../../web/i18n/utils';
+import { Input_Template_File_Link_Prompt } from '../input';
 
 export const ToolModule: FlowNodeTemplateType = {
   id: FlowNodeTypeEnum.tools,
@@ -31,8 +32,8 @@ export const ToolModule: FlowNodeTemplateType = {
   name: i18nT('workflow:template.tool_call'),
   intro: i18nT('workflow:template.tool_call_intro'),
   showStatus: true,
-  courseUrl: '/docs/workflow/modules/tool/',
-  version: '481',
+  courseUrl: '/docs/guide/workbench/workflow/tool/',
+  version: '4813',
   inputs: [
     {
       ...Input_Template_SettingAiModel,
@@ -42,14 +43,12 @@ export const ToolModule: FlowNodeTemplateType = {
       key: NodeInputKeyEnum.aiChatTemperature,
       renderTypeList: [FlowNodeInputTypeEnum.hidden], // Set in the pop-up window
       label: '',
-      value: 0,
       valueType: WorkflowIOValueTypeEnum.number
     },
     {
       key: NodeInputKeyEnum.aiChatMaxToken,
       renderTypeList: [FlowNodeInputTypeEnum.hidden], // Set in the pop-up window
       label: '',
-      value: 2000,
       valueType: WorkflowIOValueTypeEnum.number
     },
     {
@@ -59,6 +58,30 @@ export const ToolModule: FlowNodeTemplateType = {
       valueType: WorkflowIOValueTypeEnum.boolean,
       value: true
     },
+    {
+      key: NodeInputKeyEnum.aiChatTopP,
+      renderTypeList: [FlowNodeInputTypeEnum.hidden],
+      label: '',
+      valueType: WorkflowIOValueTypeEnum.number
+    },
+    {
+      key: NodeInputKeyEnum.aiChatStopSign,
+      renderTypeList: [FlowNodeInputTypeEnum.hidden],
+      label: '',
+      valueType: WorkflowIOValueTypeEnum.string
+    },
+    {
+      key: NodeInputKeyEnum.aiChatResponseFormat,
+      renderTypeList: [FlowNodeInputTypeEnum.hidden],
+      label: '',
+      valueType: WorkflowIOValueTypeEnum.string
+    },
+    {
+      key: NodeInputKeyEnum.aiChatJsonSchema,
+      renderTypeList: [FlowNodeInputTypeEnum.hidden],
+      label: '',
+      valueType: WorkflowIOValueTypeEnum.string
+    },
 
     {
       ...Input_Template_System_Prompt,
@@ -67,6 +90,7 @@ export const ToolModule: FlowNodeTemplateType = {
       placeholder: chatNodeSystemPromptTip
     },
     Input_Template_History,
+    Input_Template_File_Link_Prompt,
     Input_Template_UserChatInput
   ],
   outputs: [
