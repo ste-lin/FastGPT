@@ -212,7 +212,7 @@ const Navbar = ({ unread }: { unread: number }) => {
           </MyTooltip>
         ))}
 
-      {feConfigs?.show_git && (
+      {/*{feConfigs?.show_git && (
         <MyTooltip label={`Git Star: ${gitStar}`} placement={'right-end'}>
           <Link
             as={NextLink}
@@ -227,7 +227,7 @@ const Navbar = ({ unread }: { unread: number }) => {
             <MyIcon name={'common/gitInlight'} width={'26px'} height={'26px'} />
           </Link>
         </MyTooltip>
-      )}
+      )}*/}
     </Flex>
   );
 };

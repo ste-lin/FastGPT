@@ -586,7 +586,7 @@ const Other = ({ onOpenContact }: { onOpenContact: () => void }) => {
   return (
     <Box>
       <Grid gridGap={4} mt={3}>
-        {feConfigs?.docUrl && (
+        {/*{feConfigs?.docUrl && (
           <Link
             href={getDocPath('/docs/intro')}
             target="_blank"
@@ -598,9 +598,9 @@ const Other = ({ onOpenContact }: { onOpenContact: () => void }) => {
               {t('account_info:help_document')}
             </Box>
           </Link>
-        )}
+        )}*/}
 
-        {!isPc &&
+        {/*{!isPc &&
           feConfigs?.navbarItems
             ?.filter((item) => item.isActive)
             .map((item) => (
@@ -610,15 +610,15 @@ const Other = ({ onOpenContact }: { onOpenContact: () => void }) => {
                   {item.name}
                 </Box>
               </Flex>
-            ))}
-        {feConfigs?.concatMd && (
+            ))}*/}
+        {/*{feConfigs?.concatMd && (
           <Flex onClick={onOpenContact} {...ButtonStyles}>
             <MyIcon name={'modal/concat'} w={'18px'} color={'myGray.600'} />
             <Box ml={2} flex={1}>
               {t('account_info:contact_us')}
             </Box>
           </Flex>
-        )}
+        )}*/}
       </Grid>
     </Box>
   );
